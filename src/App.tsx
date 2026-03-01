@@ -40,7 +40,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <Footer />
-            </HashRouter>>
+            </HashRouter>
           </TooltipProvider>
         </CartProvider>
       </AuthProvider>
