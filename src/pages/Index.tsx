@@ -1,22 +1,57 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DishCard from "@/components/dishes/DishCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { ChefHat, Clock, Star, Truck } from "lucide-react";
+import { ChefHat, Clock, Star, Truck, Filter, CheckCircle2, XCircle, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/auth-context";
+import MenuManagement from "./manager/MenuManagement";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
+  const { role } = useAuth();
+  const [filter, setFilter] = useState<{
+    type: "all" | "veg" | "non-veg";
+    stock: "all" | "in-stock" | "out-of-stock";
+    scheduled: boolean;
+  }>({
+    type: "all",
+    stock: "all",
+    scheduled: false,
+  });
+
   const { data: dishes = [], isLoading } = useQuery({
-    queryKey: ["dishes"],
+    queryKey: ["dishes", filter],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("dishes")
-        .select("*")
-        .eq("is_available", true)
-        .order("created_at", { ascending: false });
+      let query = supabase.from("dishes").select("*");
+
+      if (!filter.scheduled) {
+        query = query.eq("is_available", true);
+      }
+
+      const { data } = await query.order("created_at", { ascending: false });
       return data || [];
     },
   });
+
+  const { data: scheduledDishes = [] } = useQuery({
+    queryKey: ["scheduled-dishes-ids"],
+    queryFn: async () => {
+      const { data } = await supabase.from("scheduled_menu").select("dish_id");
+      return data?.map(d => d.dish_id) || [];
+    }
+  });
+
+  const filteredDishes = dishes.filter((dish: any) => {
+    if (filter.type !== "all" && dish.dish_type !== filter.type) return false;
+    if (filter.stock === "in-stock" && dish.stock_quantity <= 0) return false;
+    if (filter.stock === "out-of-stock" && dish.stock_quantity > 0) return false;
+    if (filter.scheduled && !scheduledDishes.includes(dish.id)) return false;
+    return true;
+  });
+
 
   const { data: reviews = [] } = useQuery({
     queryKey: ["all-reviews"],
@@ -41,30 +76,42 @@ const Index = () => {
   ];
 
   return (
-    <div className="min-h-screen">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-accent to-background py-20 lg:py-28">
-        <div className="container mx-auto px-4 text-center">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <h1 className="text-4xl md:text-6xl font-serif font-bold tracking-tight mb-4">
-              Fresh from Our <span className="text-primary">Kitchen</span> to Your Table
+    <div className="relative min-h-screen overflow-hidden">
+      {/* Hero Section with Premium Atmosphere */}
+      <section className="relative pt-20 pb-16 lg:pt-32 lg:pb-24 overflow-hidden">
+        {/* Atmospheric Blobs */}
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full animate-pulse" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-orange-500/10 blur-[120px] rounded-full animate-pulse delay-700" />
+        </div>
+
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}>
+            <Badge variant="outline" className="mb-6 px-4 py-1.5 rounded-full bg-primary/5 text-primary border-primary/20 font-black uppercase tracking-widest text-[10px]">
+              Authentic & Homemade
+            </Badge>
+            <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tighter mb-6 leading-[1.1]">
+              Fresh from Our <span className="text-primary italic">Kitchen</span> <br /> to Your Table
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-              Discover delicious homemade meals prepared with the freshest ingredients. Order today or schedule for later!
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
+              Discover delicious homemade meals prepared with the freshest ingredients. <br className="hidden md:block" /> Order today or schedule your cravings for later!
             </p>
           </motion.div>
 
+          {/* Feature Grid */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto mt-12"
+            transition={{ delay: 0.4, duration: 0.8 }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto mt-16"
           >
             {features.map((f, i) => (
-              <div key={i} className="glass rounded-2xl p-4 text-center">
-                <f.icon className="h-8 w-8 text-primary mx-auto mb-2" />
-                <h3 className="font-semibold text-sm">{f.title}</h3>
-                <p className="text-xs text-muted-foreground">{f.desc}</p>
+              <div key={i} className="glass-card rounded-[2rem] p-6 text-center border-white/10 shadow-xl transition-all hover:shadow-2xl hover:shadow-primary/5 group">
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:bg-primary transition-all duration-300">
+                  <f.icon className="h-6 w-6 text-primary group-hover:text-white transition-colors" />
+                </div>
+                <h3 className="font-black text-sm uppercase tracking-wider mb-1">{f.title}</h3>
+                <p className="text-xs text-muted-foreground font-medium">{f.desc}</p>
               </div>
             ))}
           </motion.div>
@@ -73,47 +120,113 @@ const Index = () => {
 
       {/* Today's Menu */}
       <section className="container mx-auto px-4 py-16">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-serif font-bold">Today's Menu</h2>
-          <p className="text-muted-foreground mt-2">Freshly prepared dishes available right now</p>
-        </div>
-
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="space-y-3">
-                <Skeleton className="h-48 w-full rounded-xl" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </div>
-            ))}
-          </div>
-        ) : dishes.length === 0 ? (
-          <div className="text-center py-20">
-            <ChefHat className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-muted-foreground">No dishes available yet</h3>
-            <p className="text-muted-foreground/70 mt-1">Check back soon for our daily menu!</p>
+        {role === "manager" ? (
+          <div className="glass-card rounded-[3rem] p-8 border border-white/10 shadow-2xl">
+            <MenuManagement />
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {dishes.map((dish: any) => {
-              const { avg, count } = getAvgRating(dish.id);
-              return (
-                <DishCard
-                  key={dish.id}
-                  id={dish.id}
-                  name={dish.name}
-                  description={dish.description}
-                  price={dish.selling_price}
-                  imageUrl={dish.image_url}
-                  stockQuantity={dish.stock_quantity}
-                  category={dish.category}
-                  avgRating={avg}
-                  reviewCount={count}
-                />
-              );
-            })}
-          </div>
+          <>
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-serif font-bold">Today's Menu</h2>
+              <p className="text-muted-foreground mt-2">Freshly prepared dishes available right now</p>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
+                <Button
+                  variant={filter.type === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter({ ...filter, type: "all" })}
+                  className="rounded-full px-5"
+                >
+                  All
+                </Button>
+                <Button
+                  variant={filter.type === "veg" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter({ ...filter, type: "veg" })}
+                  className="rounded-full px-5 gap-2"
+                >
+                  <div className="h-2 w-2 rounded-full bg-green-500" /> Veg
+                </Button>
+                <Button
+                  variant={filter.type === "non-veg" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter({ ...filter, type: "non-veg" })}
+                  className="rounded-full px-5 gap-2"
+                >
+                  <div className="h-2 w-2 rounded-full bg-red-500" /> Non-Veg
+                </Button>
+
+                <div className="w-px h-6 bg-border mx-2" />
+
+                <Button
+                  variant={filter.stock === "in-stock" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter({ ...filter, stock: filter.stock === "in-stock" ? "all" : "in-stock" })}
+                  className="rounded-full px-5 gap-2"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> In Stock
+                </Button>
+                <Button
+                  variant={filter.stock === "out-of-stock" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter({ ...filter, stock: filter.stock === "out-of-stock" ? "all" : "out-of-stock" })}
+                  className="rounded-full px-5 gap-2"
+                >
+                  <XCircle className="h-4 w-4" /> Out of Stock
+                </Button>
+
+                <div className="w-px h-6 bg-border mx-2" />
+
+                <Button
+                  variant={filter.scheduled ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter({ ...filter, scheduled: !filter.scheduled })}
+                  className="rounded-full px-5 gap-2"
+                >
+                  <Calendar className="h-4 w-4" /> Scheduled
+                </Button>
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="space-y-3">
+                    <Skeleton className="h-48 w-full rounded-xl" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredDishes.length === 0 ? (
+              <div className="text-center py-20">
+                <ChefHat className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-muted-foreground">No dishes match your filters</h3>
+                <p className="text-muted-foreground/70 mt-1">Try changing your selection!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredDishes.map((dish: any) => {
+                  const { avg, count } = getAvgRating(dish.id);
+                  return (
+                    <DishCard
+                      key={dish.id}
+                      id={dish.id}
+                      name={dish.name}
+                      description={dish.description}
+                      price={dish.selling_price}
+                      imageUrl={dish.image_url}
+                      stockQuantity={dish.stock_quantity}
+                      category={dish.category}
+                      avgRating={avg}
+                      reviewCount={count}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+          </>
         )}
       </section>
     </div>

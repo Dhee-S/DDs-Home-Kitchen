@@ -30,11 +30,14 @@ const ChatWidget = () => {
 
   const sendMutation = useMutation({
     mutationFn: async (msg: string) => {
-      const { error } = await supabase.from("chat_messages").insert({
+      const payload: any = {
         sender_id: user!.id,
+        user_id: user!.id,
         message: msg,
-        is_from_customer: true,
-      });
+        sender_role: 'customer',
+        is_from_customer: true, // Only if the SQL added it
+      };
+      const { error } = await supabase.from("chat_messages").insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {

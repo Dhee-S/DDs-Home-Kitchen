@@ -7,7 +7,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { CartProvider } from "@/lib/cart-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import Header from "@/components/layout/Header";
-import ChatWidget from "@/components/layout/ChatWidget";
+import Footer from "@/components/layout/Footer";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Cart from "./pages/Cart";
@@ -39,7 +39,7 @@ const App = () => (
                 <Route path="/manager" element={<ManagerDashboard />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-              <ChatWidget />
+              <Footer />
             </BrowserRouter>
           </TooltipProvider>
         </CartProvider>

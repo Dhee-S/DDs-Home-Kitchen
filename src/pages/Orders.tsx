@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { Package } from "lucide-react";
+import { Package, ShoppingBag, Sparkles } from "lucide-react";
+import OrderManagement from "./manager/OrderManagement";
+import { motion } from "framer-motion";
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -15,7 +17,7 @@ const statusColors: Record<string, string> = {
 };
 
 const Orders = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["my-orders", user?.id],
@@ -39,46 +41,81 @@ const Orders = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-serif font-bold mb-8">My Orders</h1>
+    <div className="container mx-auto px-4 py-12 max-w-4xl">
+      <div className="text-center mb-12">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-black uppercase tracking-widest mb-4">
+          <ShoppingBag className="h-3 w-3" /> {role === 'manager' ? "Kitchen Fulfillment" : "My Cravings"}
+        </motion.div>
+        <h1 className="text-4xl md:text-5xl font-serif font-black tracking-tighter mb-4">
+          {role === 'manager' ? "Order Management" : "My Orders"}
+        </h1>
+        <p className="text-muted-foreground text-lg max-w-md mx-auto leading-relaxed">
+          {role === 'manager'
+            ? "Track and manage all incoming orders to ensure timely delivery."
+            : "Review your past delights and track current orders from our kitchen."}
+        </p>
+      </div>
 
-      {orders.length === 0 ? (
-        <div className="text-center py-20">
-          <Package className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-muted-foreground">No orders yet</h3>
+      {role === 'manager' ? (
+        <div className="glass-card rounded-[3rem] p-8 border border-white/10 shadow-2xl">
+          <OrderManagement />
         </div>
       ) : (
-        <div className="space-y-4">
-          {orders.map((order: any) => (
-            <Card key={order.id}>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="font-mono font-bold text-primary">{order.order_code}</span>
-                    <span className="text-sm text-muted-foreground ml-3">
-                      {format(new Date(order.created_at), "MMM d, yyyy · h:mm a")}
-                    </span>
-                  </div>
-                  <Badge variant="outline" className={statusColors[order.status] || ""}>
-                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  {order.order_items?.map((item: any) => (
-                    <div key={item.id} className="flex items-center justify-between text-sm">
-                      <span>{item.dishes?.name} × {item.quantity}</span>
-                      <span className="font-medium">₹{(item.unit_price * item.quantity).toFixed(2)}</span>
+        <>
+          {orders.length === 0 ? (
+            <div className="text-center py-20 bg-muted/20 rounded-[2.5rem] border-2 border-dashed border-border/50">
+              <Package className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-muted-foreground">No orders yet</h3>
+              <p className="text-sm text-muted-foreground/60 mt-1">Your delicious journey starts with your first order!</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {orders.map((order: any) => (
+                <Card key={order.id} className="border-0 shadow-xl glass-card rounded-[2rem] overflow-hidden group hover:shadow-2xl transition-all duration-300">
+                  <CardContent className="p-6 md:p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                          <Package className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-primary text-lg">{order.order_code}</span>
+                            <Badge className={`rounded-xl px-3 py-0.5 text-[10px] font-black uppercase tracking-widest ${statusColors[order.status] || ""}`}>
+                              {order.status}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {format(new Date(order.created_at), "MMMM d, yyyy · h:mm a")}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-2xl font-black text-foreground">₹{Number(order.total_amount).toFixed(2)}</span>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount Paid</p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-                <div className="border-t mt-3 pt-3 flex justify-between font-bold">
-                  <span>Total</span>
-                  <span>₹{Number(order.total_amount).toFixed(2)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+
+                    <div className="space-y-3 bg-muted/30 p-5 rounded-2xl border border-border/40">
+                      {order.order_items?.map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between text-sm group/item">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-background overflow-hidden border border-border/50">
+                              {item.dishes?.image_url ? <img src={item.dishes.image_url} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-xs">🥘</div>}
+                            </div>
+                            <span className="font-bold">{item.dishes?.name}</span>
+                            <span className="text-muted-foreground text-xs bg-muted/50 px-2 py-0.5 rounded-lg">×{item.quantity}</span>
+                          </div>
+                          <span className="font-mono font-bold">₹{(item.unit_price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -11,7 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-const emptyDish = { name: "", description: "", base_price: 0, margin_percentage: 20, category: "General", stock_quantity: 10, image_url: "" };
+const emptyDish = {
+  name: "",
+  description: "",
+  selling_price: 0,
+  categories: [] as string[],
+  dish_type: "veg" as "veg" | "non-veg",
+  stock_quantity: 10,
+  image_url: ""
+};
 
 const MenuManagement = () => {
   const queryClient = useQueryClient();
@@ -19,7 +27,7 @@ const MenuManagement = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyDish);
 
-  const { data: dishes = [], isLoading } = useQuery({
+  const { data: dishes = [] } = useQuery({
     queryKey: ["all-dishes"],
     queryFn: async () => {
       const { data } = await supabase.from("dishes").select("*").order("created_at", { ascending: false });
@@ -27,11 +35,9 @@ const MenuManagement = () => {
     },
   });
 
-  const sellingPrice = form.base_price + (form.base_price * form.margin_percentage) / 100;
-
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = { ...form, selling_price: sellingPrice, is_available: form.stock_quantity > 0 };
+      const payload = { ...form, is_available: form.stock_quantity > 0 };
       if (editId) {
         const { error } = await supabase.from("dishes").update(payload).eq("id", editId);
         if (error) throw error;
@@ -63,7 +69,15 @@ const MenuManagement = () => {
 
   const openEdit = (dish: any) => {
     setEditId(dish.id);
-    setForm({ name: dish.name, description: dish.description || "", base_price: dish.base_price, margin_percentage: dish.margin_percentage, category: dish.category || "General", stock_quantity: dish.stock_quantity, image_url: dish.image_url || "" });
+    setForm({
+      name: dish.name,
+      description: dish.description || "",
+      selling_price: dish.selling_price || 0,
+      categories: dish.categories || [],
+      dish_type: dish.dish_type || "veg",
+      stock_quantity: dish.stock_quantity || 0,
+      image_url: dish.image_url || ""
+    });
     setOpen(true);
   };
 
@@ -82,15 +96,27 @@ const MenuManagement = () => {
             <div className="space-y-3">
               <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
               <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+              
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Base Price (₹)</Label><Input type="number" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: Number(e.target.value) })} /></div>
-                <div><Label>Margin (%)</Label><Input type="number" value={form.margin_percentage} onChange={(e) => setForm({ ...form, margin_percentage: Number(e.target.value) })} /></div>
-              </div>
-              <p className="text-sm text-muted-foreground">Selling price: <strong className="text-primary">₹{sellingPrice.toFixed(2)}</strong></p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Category</Label><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
+                <div><Label>Selling Price (₹)</Label><Input type="number" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} /></div>
                 <div><Label>Stock Qty</Label><Input type="number" value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: Number(e.target.value) })} /></div>
               </div>
+
+              <div><Label>Type</Label>
+                <div className="flex gap-2 mt-1">
+                  <Button type="button" variant={form.dish_type === "veg" ? "default" : "outline"} className={form.dish_type === "veg" ? "bg-green-600" : ""} onClick={() => setForm({ ...form, dish_type: "veg" })}>🥗 Veg</Button>
+                  <Button type="button" variant={form.dish_type === "non-veg" ? "default" : "outline"} className={form.dish_type === "non-veg" ? "bg-red-600" : ""} onClick={() => setForm({ ...form, dish_type: "non-veg" })}>🍗 Non-Veg</Button>
+                </div>
+              </div>
+
+              <div><Label>Categories</Label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {['snacks', 'breakfast', 'lunch', 'dinner', 'special'].map((cat) => (
+                    <Button key={cat} type="button" variant={form.categories.includes(cat) ? "default" : "outline"} size="sm" onClick={() => setForm({ ...form, categories: form.categories.includes(cat) ? form.categories.filter(c => c !== cat) : [...form.categories, cat] })}>{cat}</Button>
+                  ))}
+                </div>
+              </div>
+
               <div><Label>Image URL</Label><Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." /></div>
               <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !form.name} className="w-full">
                 {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editId ? "Update Dish" : "Add Dish"}
@@ -111,10 +137,14 @@ const MenuManagement = () => {
                 <h3 className="font-semibold truncate">{dish.name}</h3>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-primary font-medium">₹{dish.selling_price}</span>
-                  <Badge variant={dish.is_available ? "default" : "destructive"} className="text-[10px]">
-                    {dish.is_available ? `${dish.stock_quantity} in stock` : "Out of Stock"}
-                  </Badge>
+                  <Badge variant="outline" className={dish.dish_type === 'veg' ? 'text-green-600' : 'text-red-600'}>{dish.dish_type === 'veg' ? 'VEG' : 'NON-VEG'}</Badge>
+                  <Badge variant={dish.is_available ? "default" : "destructive"} className="text-[10px]">{dish.is_available ? `${dish.stock_quantity} in stock` : "Out of Stock"}</Badge>
                 </div>
+                {dish.categories?.length > 0 && (
+                  <div className="flex gap-1 mt-1">
+                    {dish.categories.map((c: string) => <Badge key={c} variant="secondary" className="text-[8px]">{c}</Badge>)}
+                  </div>
+                )}
               </div>
               <Button variant="ghost" size="icon" onClick={() => openEdit(dish)}><Edit className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(dish.id)}><Trash2 className="h-4 w-4" /></Button>
