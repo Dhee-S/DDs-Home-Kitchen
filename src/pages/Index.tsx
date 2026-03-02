@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DishCard from "@/components/dishes/DishCard";
@@ -13,10 +14,7 @@ import { Button } from "@/components/ui/button";
 const Index = () => {
   const { role } = useAuth();
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  const navigate = useNavigate();
 
   const [filter, setFilter] = useState<{
     type: "all" | "veg" | "non-veg";
@@ -254,8 +252,15 @@ const Index = () => {
                   <h3 className="text-xl font-bold text-orange-600 dark:text-orange-400">Chef is Preparing Something Special!</h3>
                   <p className="text-muted-foreground mt-2 max-w-md mx-auto">
                     Our master cook Ponnukodi S is busy in the kitchen. <br className="hidden sm:block" />
-                    Check back soon or browse our full menu below!
+                    Want something specific? Schedule your request!
                   </p>
+                  <Button 
+                    onClick={() => navigate("/schedule")}
+                    className="mt-6 rounded-full bg-orange-500 hover:bg-orange-600 gap-2"
+                  >
+                    <CalendarRange className="h-4 w-4" />
+                    Schedule Your Cravings
+                  </Button>
                 </motion.div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

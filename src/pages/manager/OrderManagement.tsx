@@ -68,7 +68,14 @@ const OrderManagement = () => {
   const updatePaymentStatus = useMutation({
     mutationFn: async ({ id, paymentStatus, userEmail }: { id: string; paymentStatus: string; userEmail?: string }) => {
       // @ts-ignore - payment_status column may not be in types
-      const { error } = await supabase.from("orders").update({ payment_status: paymentStatus }).eq("id", id);
+      const updates: any = { payment_status: paymentStatus };
+      
+      // Auto-confirm order when payment is marked as paid
+      if (paymentStatus === 'paid') {
+        updates.status = 'confirmed';
+      }
+      
+      const { error } = await supabase.from("orders").update(updates).eq("id", id);
       if (error) throw error;
 
       if (paymentStatus === 'paid' && userEmail) {
