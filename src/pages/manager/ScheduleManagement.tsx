@@ -242,7 +242,15 @@ const ScheduleManagement = () => {
           <p className="text-muted-foreground">Manage your kitchen's timeline and custom requests.</p>
         </div>
 
-        <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) { setForm({ dish_id: "", schedule_date: "", quantity_available: 10, preorder_enabled: true, category: "" }); setCategoryFilter("all"); } }}>
+        <Dialog open={isAddOpen} onOpenChange={(open) => { 
+          if (open && selectedDate) {
+            setForm({ ...form, schedule_date: format(selectedDate, "yyyy-MM-dd") });
+          }
+          if (!open) { 
+            setForm({ dish_id: "", schedule_date: "", quantity_available: 10, preorder_enabled: true, category: "" }); 
+            setCategoryFilter("all"); 
+          } 
+        }}>
           <DialogTrigger asChild>
             <Button className="gap-2 rounded-2xl h-12 px-6 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
               <Plus className="h-5 w-5" /> Schedule New Dish

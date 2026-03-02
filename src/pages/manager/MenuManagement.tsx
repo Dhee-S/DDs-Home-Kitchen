@@ -191,6 +191,10 @@ const MenuManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["all-dishes"] });
       toast.success("Dish deleted");
     },
+    onError: (err: any) => {
+      console.error("Delete error:", err);
+      toast.error(err.message || "Failed to delete dish");
+    },
   });
 
   const deleteScheduleMutation = useMutation({
