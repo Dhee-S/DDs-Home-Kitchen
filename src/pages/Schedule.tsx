@@ -57,9 +57,16 @@ const Schedule = () => {
       .channel('schedule-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_menu' }, () => {
         queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+        queryClient.invalidateQueries({ queryKey: ['all-scheduled'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['all-dishes'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'special_requests' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['all-special-requests'] });
       })
       .subscribe();
 
@@ -381,7 +388,7 @@ const Schedule = () => {
                                   {user && req.user_id === user.id && req.status === 'pending' && (
                                     <>
                                       <Button onClick={() => { setRequestCategory(req.category?.[0] || ''); setEditingRequestId(req.id); setRequestForm({ dish: req.dish_name, dishType: req.dish_type || 'veg', date: req.request_date, timeIndex: ["Morning", "Afternoon", "Evening", "Night"].indexOf(req.request_time), quantity: req.quantity, occasion: req.occasion || "", notes: req.notes || "" }); setViewMode('request'); }} className="rounded-xl gap-2"><Edit2 className="h-4 w-4" /> Edit</Button>
-                                      <Button variant="destructive" className="rounded-xl gap-2" onClick={async () => { if (confirm("Delete?")) { await supabase.from("special_requests" as any).delete().eq("id", req.id); queryClient.invalidateQueries({ queryKey: ["all-special-requests"] }); toast.success("Deleted"); } }}><Trash2 className="h-4 w-4" /> Delete</Button>
+                                      <Button variant="destructive" className="rounded-xl gap-2" onClick={async () => { if (confirm("Reject this request?")) { await (supabase.from("special_requests" as any).update({ status: 'rejected' }).eq("id", req.id) as any); queryClient.invalidateQueries({ queryKey: ["all-special-requests"] }); toast.success("Request rejected"); } }}><Trash2 className="h-4 w-4" /> Delete</Button>
                                     </>
                                   )}
                                   {(!user || req.user_id !== user.id) && <Button variant="outline" className="rounded-xl gap-2" onClick={() => toast.info("Contact kitchen!")}><PhoneCall className="h-4 w-4" /> Contact</Button>}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,6 +73,24 @@ const ScheduleManagement = () => {
   const pendingDates = specialRequests.filter((r: any) => r.status === 'pending').map((r: any) => new Date(r.request_date));
   const approvedDates = specialRequests.filter((r: any) => r.status === 'approved').map((r: any) => new Date(r.request_date));
   const rejectedDates = specialRequests.filter((r: any) => r.status === 'rejected').map((r: any) => new Date(r.request_date));
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('manager-schedule-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_menu' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['all-scheduled'] });
+        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['all-dishes'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'special_requests' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['all-special-requests'] });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const requestStatuses = ["pending", "approved", "rejected"];
 

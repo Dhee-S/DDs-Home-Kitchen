@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -63,6 +63,20 @@ const MenuManagement = () => {
   });
 
   const availableCategories = [...new Set(dishes.flatMap((d: any) => d.categories || d.category || []))] as string[];
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('menu-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['all-dishes'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_menu' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const filteredDishesByCategory = scheduleCategory 
     ? dishes.filter((d: any) => (d.categories || d.category || []).includes(scheduleCategory))
