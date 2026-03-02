@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
-import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { CalendarDays, ShoppingCart, Filter, Send, Minus, Plus, CookingPot, Sun, CloudSun, Sunset, Moon, Sparkles, PhoneCall, ChevronRight, ArrowLeft, Heart, CheckCircle2, Edit2, XCircle, Clock, Trash2, AlertTriangle, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import ScheduleManagement from "./manager/ScheduleManagement";
 
 const Schedule = () => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  
   const [viewMode, setViewMode] = useState<'browse' | 'request'>('browse');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [preorderOnly, setPreorderOnly] = useState(false);
@@ -47,6 +51,20 @@ const Schedule = () => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('schedule-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_menu' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const { data: specialRequests = [] } = useQuery({
     queryKey: ["all-special-requests"],
@@ -404,10 +422,12 @@ const Schedule = () => {
                                 <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{item.dishes?.description}</p>
                                 <div className="flex items-center gap-3 mt-2">
                                   <span className="text-primary font-bold">₹{item.dishes?.selling_price}</span>
-                                  {item.preorder_enabled && <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600">Available</Badge>}
+                                  {item.preorder_enabled && item.quantity_available > 0 && <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600">{item.quantity_available} left</Badge>}
+                                  {item.preorder_enabled && item.quantity_available <= 0 && <Badge variant="destructive" className="text-[10px]">Sold Out</Badge>}
                                 </div>
                               </div>
                               {item.preorder_enabled && item.quantity_available > 0 && <Button onClick={() => handlePreorder(item)} className="shrink-0 h-12 w-12 rounded-xl shadow-lg p-0 bg-primary"><ShoppingCart className="h-5 w-5" /></Button>}
+                              {item.preorder_enabled && item.quantity_available <= 0 && <Button disabled className="shrink-0 h-12 w-12 rounded-xl shadow-lg p-0 bg-muted text-muted-foreground"><XCircle className="h-5 w-5" /></Button>}
                             </CardContent>
                           </Card>
                         </motion.div>

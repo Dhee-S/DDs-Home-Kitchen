@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DishCard from "@/components/dishes/DishCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { ChefHat, Clock, Star, Truck, Filter, CheckCircle2, XCircle, Calendar } from "lucide-react";
+import { ChefHat, Clock, Star, Truck, Filter, CheckCircle2, XCircle, Calendar, Sparkles, Flame, CalendarRange } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import MenuManagement from "./manager/MenuManagement";
@@ -12,6 +12,12 @@ import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const { role } = useAuth();
+  const queryClient = useQueryClient();
+  
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  
   const [filter, setFilter] = useState<{
     type: "all" | "veg" | "non-veg";
     stock: "all" | "in-stock" | "out-of-stock";
@@ -21,6 +27,32 @@ const Index = () => {
     stock: "all",
     scheduled: false,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('scheduled-menu-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_menu' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['scheduled-dishes'] });
+        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['scheduled-dishes'] });
+        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const dayOfWeek = today.getDay();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - dayOfWeek);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
 
   const { data: dishes = [], isLoading } = useQuery({
     queryKey: ["dishes", filter],
@@ -37,6 +69,22 @@ const Index = () => {
   });
 
   const { data: scheduledDishes = [] } = useQuery({
+    queryKey: ["scheduled-dishes"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("scheduled_menu")
+        .select("*, dishes(*)")
+        .gte("schedule_date", todayStr)
+        .lte("schedule_date", weekEndStr)
+        .order("schedule_date");
+      return data || [];
+    }
+  });
+
+  const todaysSpecialDishes = scheduledDishes.filter((item: any) => item.schedule_date === todayStr);
+  const weeklySpecialDishes = scheduledDishes.filter((item: any) => item.schedule_date !== todayStr);
+
+  const { data: allScheduledDishIds = [] } = useQuery({
     queryKey: ["scheduled-dishes-ids"],
     queryFn: async () => {
       const { data } = await supabase.from("scheduled_menu").select("dish_id");
@@ -48,10 +96,11 @@ const Index = () => {
     if (filter.type !== "all" && dish.dish_type !== filter.type) return false;
     if (filter.stock === "in-stock" && dish.stock_quantity <= 0) return false;
     if (filter.stock === "out-of-stock" && dish.stock_quantity > 0) return false;
-    if (filter.scheduled && !scheduledDishes.includes(dish.id)) return false;
+    if (filter.scheduled && !allScheduledDishIds.includes(dish.id)) return false;
     return true;
   });
 
+  const availableDishes = dishes.filter((dish: any) => dish.is_available && dish.stock_quantity > 0);
 
   const { data: reviews = [] } = useQuery({
     queryKey: ["all-reviews"],
@@ -88,13 +137,13 @@ const Index = () => {
         <div className="container relative z-10 mx-auto px-4 text-center">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}>
             <Badge variant="outline" className="mb-6 px-4 py-1.5 rounded-full bg-primary/5 text-primary border-primary/20 font-black uppercase tracking-widest text-[10px]">
-              Authentic & Homemade
+              Master Cook: Ponnukodi S
             </Badge>
             <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tighter mb-6 leading-[1.1]">
               Fresh from Our <span className="text-primary italic">Kitchen</span> <br /> to Your Table
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
-              Discover delicious homemade meals prepared with the freshest ingredients. <br className="hidden md:block" /> Order today or schedule your cravings for later!
+              Premium homemade meals crafted with love and fresh ingredients by Master Cook Ponnukodi S. <br className="hidden md:block" /> Experience authentic taste delivered to your doorstep!
             </p>
           </motion.div>
 
@@ -118,19 +167,119 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Today's Menu */}
-      <section className="container mx-auto px-4 py-16">
+      {/* Menu Sections */}
+      <section className="container mx-auto px-4 pb-16">
         {role === "manager" ? (
           <div className="glass-card rounded-[3rem] p-8 border border-white/10 shadow-2xl">
             <MenuManagement />
           </div>
         ) : (
           <>
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-serif font-bold">Today's Menu</h2>
-              <p className="text-muted-foreground mt-2">Freshly prepared dishes available right now</p>
+            {/* Today's Special Section */}
+            <div className="mb-16">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg">
+                  <Flame className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-serif font-bold">Today's Special</h2>
+                  <p className="text-muted-foreground">Freshly prepared for you today</p>
+                </div>
+              </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
+              {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="space-y-3">
+                      <Skeleton className="h-48 w-full rounded-xl" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              ) : todaysSpecialDishes.length === 0 ? (
+                <div className="text-center py-12 glass-card rounded-[2rem] border-2 border-dashed border-border/40">
+                  <div className="text-5xl mb-4 opacity-30">👨‍🍳</div>
+                  <h3 className="text-xl font-semibold text-muted-foreground">No dishes scheduled for today</h3>
+                  <p className="text-muted-foreground/70 mt-1">Check the full menu or schedule page for options</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {todaysSpecialDishes.map((item: any) => {
+                    const dish = item.dishes;
+                    const { avg, count } = getAvgRating(dish?.id);
+                    return (
+                      <DishCard
+                        key={dish?.id}
+                        id={dish?.id}
+                        name={dish?.name}
+                        description={dish?.description}
+                        price={dish?.selling_price}
+                        imageUrl={dish?.image_url}
+                        stockQuantity={item.quantity_available || dish?.stock_quantity}
+                        category={dish?.category}
+                        avgRating={avg}
+                        reviewCount={count}
+                        dish_type={dish?.dish_type}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Weekly Special Section */}
+            {weeklySpecialDishes.length > 0 && (
+              <div className="mb-16">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                    <CalendarRange className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-serif font-bold">This Week's Menu</h2>
+                    <p className="text-muted-foreground">Upcoming dishes for the week</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {weeklySpecialDishes.slice(0, 8).map((item: any) => {
+                    const dish = item.dishes;
+                    const { avg, count } = getAvgRating(dish?.id);
+                    return (
+                      <DishCard
+                        key={dish?.id}
+                        id={dish?.id}
+                        name={dish?.name}
+                        description={dish?.description}
+                        price={dish?.selling_price}
+                        imageUrl={dish?.image_url}
+                        stockQuantity={item.quantity_available || dish?.stock_quantity}
+                        category={item.schedule_date}
+                        avgRating={avg}
+                        reviewCount={count}
+                        dish_type={dish?.dish_type}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Full Menu Section */}
+            <div>
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg">
+                    <ChefHat className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-serif font-bold">Full Menu</h2>
+                    <p className="text-muted-foreground">Browse all available dishes</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
                 <Button
                   variant={filter.type === "all" ? "default" : "outline"}
                   size="sm"
@@ -186,46 +335,46 @@ const Index = () => {
                   <Calendar className="h-4 w-4" /> Scheduled
                 </Button>
               </div>
+
+              {isLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="space-y-3">
+                      <Skeleton className="h-48 w-full rounded-xl" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredDishes.length === 0 ? (
+                <div className="text-center py-20">
+                  <ChefHat className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-muted-foreground">No dishes match your filters</h3>
+                  <p className="text-muted-foreground/70 mt-1">Try changing your selection!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredDishes.map((dish: any) => {
+                    const { avg, count } = getAvgRating(dish.id);
+                    return (
+                      <DishCard
+                        key={dish.id}
+                        id={dish.id}
+                        name={dish.name}
+                        description={dish.description}
+                        price={dish.selling_price}
+                        imageUrl={dish.image_url}
+                        stockQuantity={dish.stock_quantity}
+                        category={dish.category}
+                        avgRating={avg}
+                        reviewCount={count}
+                        dish_type={dish.dish_type}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
-
-            {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="space-y-3">
-                    <Skeleton className="h-48 w-full rounded-xl" />
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
-                ))}
-              </div>
-            ) : filteredDishes.length === 0 ? (
-              <div className="text-center py-20">
-                <ChefHat className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-muted-foreground">No dishes match your filters</h3>
-                <p className="text-muted-foreground/70 mt-1">Try changing your selection!</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredDishes.map((dish: any) => {
-                  const { avg, count } = getAvgRating(dish.id);
-                  return (
-                    <DishCard
-                      key={dish.id}
-                      id={dish.id}
-                      name={dish.name}
-                      description={dish.description}
-                      price={dish.selling_price}
-                      imageUrl={dish.image_url}
-                      stockQuantity={dish.stock_quantity}
-                      category={dish.category}
-                      avgRating={avg}
-                      reviewCount={count}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
           </>
         )}
       </section>
