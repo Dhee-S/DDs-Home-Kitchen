@@ -63,8 +63,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    // Real-time subscription for role changes
+    const roleChannel = supabase
+      .channel('role-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, (payload) => {
+        if (user && payload.new && (payload.new as any).user_id === user.id) {
+          setRole((payload.new as any).role as UserRole);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(roleChannel);
+    };
+  }, [user]);
 
   const signUp = async (email: string, password: string, name: string) => {
     const { error } = await supabase.auth.signUp({

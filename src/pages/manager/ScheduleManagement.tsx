@@ -148,17 +148,30 @@ const ScheduleManagement = () => {
   };
 
   const updateRequestStatus = useMutation({
-    mutationFn: async ({ id, status, quantity, dishName }: { id: string, status: string, quantity?: number, dishName?: string }) => {
+    mutationFn: async ({ id, status, quantity, dishName, userId, requestDate }: { id: string, status: string, quantity?: number, dishName?: string, userId?: string, requestDate?: string }) => {
       const { error } = await (supabase.from("special_requests" as any).update({ status }).eq("id", id) as any);
       if (error) throw error;
 
-      // When completed, decrement dish stock
-      if (status === "completed" && quantity && quantity > 0) {
-        // Find the dish and decrement stock
-        const { data: dish } = await supabase.from("dishes").select("id, stock_quantity").ilike("name", `%${dishName}%`).single();
-        if (dish) {
-          await supabase.from("dishes").update({ stock_quantity: Math.max(0, (dish.stock_quantity || 0) - quantity) }).eq("id", dish.id);
-        }
+      // When completed, notify user and move to orders
+      if (status === "completed" && userId) {
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          title: "Order Completed! 🎉",
+          message: `Your special request for "${dishName}" has been completed. Enjoy your meal!`,
+          type: "order",
+          reference_id: id
+        } as any);
+      }
+
+      // When approved, notify user to complete payment
+      if (status === "approved" && userId) {
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          title: "Request Approved! 💳",
+          message: `Your special request for "${dishName}" has been approved. Please complete your payment to confirm the order.`,
+          type: "order",
+          reference_id: id
+        } as any);
       }
     },
     onSuccess: () => {
@@ -446,8 +459,8 @@ const ScheduleManagement = () => {
                           </div>
                           <div className="text-xs text-muted-foreground mb-2">Qty: {req.quantity} | {req.request_time}</div>
                           <div className="flex gap-2">
-                            <Button size="sm" className="flex-1 h-8 rounded-full bg-green-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'approved' })}>Approve</Button>
-                            <Button size="sm" variant="outline" className="flex-1 h-8 rounded-full" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'rejected' })}>Reject</Button>
+                            <Button size="sm" className="flex-1 h-8 rounded-full bg-green-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'approved', dishName: req.dish_name, userId: req.user_id })}>Approve</Button>
+                            <Button size="sm" variant="outline" className="flex-1 h-8 rounded-full" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'rejected', dishName: req.dish_name, userId: req.user_id })}>Reject</Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -477,7 +490,7 @@ const ScheduleManagement = () => {
                             </Button>
                           </div>
                           <div className="text-xs text-muted-foreground mb-2">Qty: {req.quantity} | {req.request_time}</div>
-                          <Button size="sm" className="w-full h-8 rounded-full bg-green-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'completed', quantity: req.quantity, dishName: req.dish_name })}>Mark Completed</Button>
+                          <Button size="sm" className="w-full h-8 rounded-full bg-green-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'completed', quantity: req.quantity, dishName: req.dish_name, userId: req.user_id })}>Mark Completed</Button>
                         </CardContent>
                       </Card>
                     ))
