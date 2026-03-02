@@ -39,14 +39,6 @@ const Schedule = () => {
     notes: ""
   });
   
-  const getAvailableDishTypesForCategory = (category: string) => {
-    const categoryDishes = dishes.filter((d: any) => {
-      const cats = d.categories || d.category || [];
-      return cats.includes(category);
-    });
-    const types = new Set(categoryDishes.map((d: any) => d.dish_type).filter((t: string) => t && t !== 'both'));
-    return Array.from(types);
-  };
   const { addItem } = useCart();
   const { user, role } = useAuth();
   const navigate = useNavigate();
@@ -114,6 +106,15 @@ const Schedule = () => {
     special: '🎉'
   };
 
+  const getAvailableDishTypesForCategory = (category: string) => {
+    const categoryDishes = dishes.filter((d: any) => {
+      const cats = d.categories || d.category || [];
+      return cats.includes(category);
+    });
+    const types = new Set(categoryDishes.map((d: any) => d.dish_type).filter((t: string) => t && t !== 'both'));
+    return Array.from(types);
+  };
+
   const getRequestsForDate = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
     return specialRequests.filter((r: any) => r.request_date === dateStr);
@@ -121,12 +122,6 @@ const Schedule = () => {
 
   const getRequestForDate = (date: Date) => {
     return getRequestsForDate(date)[0];
-  };
-
-  const isUserRequest = (date: Date) => {
-    if (!user) return null;
-    const dateStr = format(date, "yyyy-MM-dd");
-    return specialRequests.find((r: any) => r.request_date === dateStr && r.user_id === user.id);
   };
 
   let filteredItems = selectedDate
@@ -153,7 +148,7 @@ const Schedule = () => {
     addItem({
       dishId: item.dishes.id,
       name: item.dishes.name,
-      price: item.dishes.selling_price,
+      price: item.schedule_price || item.dishes.selling_price,
       imageUrl: item.dishes.image_url,
       maxStock: item.quantity_available,
       scheduledMenuId: item.id
@@ -161,10 +156,26 @@ const Schedule = () => {
     toast.success(`Added ${item.dishes.name} for pre-order`);
   };
 
+  const handleAddRequestToCart = (req: any) => {
+    if (!user) { navigate("/auth"); return; }
+    if (!req.price) {
+      toast.error("Price not yet set by kitchen. Please wait or contact them.");
+      return;
+    }
+    addItem({
+      dishId: req.id,
+      name: `Special: ${req.dish_name}`,
+      price: req.price,
+      imageUrl: null,
+      maxStock: req.quantity,
+      scheduledMenuId: null
+    });
+    toast.success(`Added ${req.dish_name} to cart`);
+  };
+
   const submitRequest = async () => {
     if (!user) { navigate("/auth"); return; }
     
-    // Check if there's already a pending request for this date
     const existingRequest = specialRequests.find((r: any) => 
       r.request_date === requestForm.date && r.status === 'pending'
     );
@@ -216,6 +227,7 @@ const Schedule = () => {
       if (error) { toast.error("Failed to save request"); return; }
 
       await supabase.from("notifications").insert({
+        user_id: user.id,
         title: "New Special Request",
         message: `${user.email} requested ${requestForm.dish} for ${requestForm.date}`,
         type: "order"
@@ -287,7 +299,7 @@ const Schedule = () => {
                     selected={selectedDate}
                     onSelect={(date) => {
                       setSelectedDate(date);
-                      setShowExistingRequestWarning(false); // Reset warning when date changes
+                      setShowExistingRequestWarning(false);
                       if (date) setRequestForm({ ...requestForm, date: format(date, "yyyy-MM-dd") });
                     }}
                     modifiers={{ 
@@ -359,54 +371,62 @@ const Schedule = () => {
             <div className="space-y-6 pb-20">
               {viewMode === 'browse' ? (
                 <div className="space-y-6">
-                  {selectedDate && getRequestsForDate(selectedDate).length > 0 && (
-                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                      <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />Special Requests</h3>
-                      {getRequestsForDate(selectedDate)
-                        .sort((a: any, b: any) => {
-                          const statusOrder: Record<string, number> = { 'approved': 0, 'completed': 1, 'pending': 2, 'rejected': 3 };
-                          return (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4);
-                        })
-                        .map((req: any) => (
-                          <Card key={req.id} className="overflow-hidden border-0 glass-card shadow-xl rounded-[2rem] border-l-4 border-l-orange-500">
-                            <CardContent className="p-6">
-                              <div className="flex flex-col md:flex-row justify-between gap-4">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3 mb-3">
-                                    <Badge className={`rounded-full px-3 py-1 text-xs font-bold ${req.status === 'approved' ? 'bg-green-500' : req.status === 'rejected' ? 'bg-red-500' : req.status === 'completed' ? 'bg-blue-500' : 'bg-orange-500'}`}>
-                                      {req.status.toUpperCase()}
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground">by {req.user_id === user?.id ? 'You' : 'Another User'}</span>
+                  <AnimatePresence>
+                    {selectedDate && getRequestsForDate(selectedDate).length > 0 && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                        <h3 className="text-lg font-bold flex items-center gap-2 text-primary"><span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />Special Requests</h3>
+                        {getRequestsForDate(selectedDate)
+                          .sort((a: any, b: any) => {
+                            const statusOrder: Record<string, number> = { 'approved': 0, 'completed': 1, 'pending': 2, 'rejected': 3 };
+                            return (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4);
+                          })
+                          .map((req: any) => (
+                            <Card key={req.id} className="overflow-hidden border-0 glass-card shadow-xl rounded-[2rem] border-l-4 border-l-orange-500">
+                              <CardContent className="p-6">
+                                <div className="flex flex-col md:flex-row justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-3">
+                                      <Badge className={`rounded-full px-3 py-1 text-xs font-bold ${req.status === 'approved' ? 'bg-green-500' : req.status === 'rejected' ? 'bg-red-500' : req.status === 'completed' ? 'bg-blue-500' : 'bg-orange-500'}`}>
+                                        {req.status.toUpperCase()}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">by {req.user_id === user?.id ? 'You' : 'Another User'}</span>
+                                    </div>
+                                    <h4 className="font-serif font-bold text-2xl mb-2">{req.dish_name}</h4>
+                                    <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                                      <span className="bg-muted px-3 py-1 rounded-full">🕐 {req.request_time}</span>
+                                      <span className="bg-muted px-3 py-1 rounded-full">📦 Qty: {req.quantity}</span>
+                                      {req.price && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">₹{req.price}</span>}
+                                    </div>
                                   </div>
-                                  <h4 className="font-serif font-bold text-2xl mb-2">{req.dish_name}</h4>
-                                  <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                                    <span className="bg-muted px-3 py-1 rounded-full">🕐 {req.request_time}</span>
-                                    <span className="bg-muted px-3 py-1 rounded-full">📦 Qty: {req.quantity}</span>
+                                  <div className="flex flex-col gap-2">
+                                    {user && req.user_id === user.id && req.status === 'pending' && (
+                                      <>
+                                        <Button onClick={() => { setRequestCategory(req.category?.[0] || ''); setEditingRequestId(req.id); setRequestForm({ dish: req.dish_name, dishType: req.dish_type || 'veg', date: req.request_date, timeIndex: ["Morning", "Afternoon", "Evening", "Night"].indexOf(req.request_time), quantity: req.quantity, occasion: req.occasion || "", notes: req.notes || "" }); setViewMode('request'); }} className="rounded-xl gap-2"><Edit2 className="h-4 w-4" /> Edit</Button>
+                                        <Button variant="destructive" className="rounded-xl gap-2" onClick={async () => { if (confirm("Reject this request?")) { await (supabase.from("special_requests" as any).update({ status: 'rejected' }).eq("id", req.id) as any); queryClient.invalidateQueries({ queryKey: ["all-special-requests"] }); toast.success("Request rejected"); } }}><Trash2 className="h-4 w-4" /> Delete</Button>
+                                      </>
+                                    )}
+                                    {user && req.user_id === user.id && req.status === 'approved' && (
+                                      <Button onClick={() => handleAddRequestToCart(req)} className="rounded-xl gap-2 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-500/20">
+                                        <ShoppingCart className="h-4 w-4" /> Add to Cart
+                                      </Button>
+                                    )}
+                                    {(!user || req.user_id !== user.id) && <Button variant="outline" className="rounded-xl gap-2" onClick={() => toast.info("Contact kitchen!")}><PhoneCall className="h-4 w-4" /> Contact</Button>}
                                   </div>
                                 </div>
-                                <div className="flex flex-col gap-2">
-                                  {user && req.user_id === user.id && req.status === 'pending' && (
-                                    <>
-                                      <Button onClick={() => { setRequestCategory(req.category?.[0] || ''); setEditingRequestId(req.id); setRequestForm({ dish: req.dish_name, dishType: req.dish_type || 'veg', date: req.request_date, timeIndex: ["Morning", "Afternoon", "Evening", "Night"].indexOf(req.request_time), quantity: req.quantity, occasion: req.occasion || "", notes: req.notes || "" }); setViewMode('request'); }} className="rounded-xl gap-2"><Edit2 className="h-4 w-4" /> Edit</Button>
-                                      <Button variant="destructive" className="rounded-xl gap-2" onClick={async () => { if (confirm("Reject this request?")) { await (supabase.from("special_requests" as any).update({ status: 'rejected' }).eq("id", req.id) as any); queryClient.invalidateQueries({ queryKey: ["all-special-requests"] }); toast.success("Request rejected"); } }}><Trash2 className="h-4 w-4" /> Delete</Button>
-                                    </>
-                                  )}
-                                  {(!user || req.user_id !== user.id) && <Button variant="outline" className="rounded-xl gap-2" onClick={() => toast.info("Contact kitchen!")}><PhoneCall className="h-4 w-4" /> Contact</Button>}
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                    </motion.div>
-                  )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <h3 className="text-lg font-bold flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" />Kitchen Menu</h3>
                       <div className="flex gap-2 ml-auto">
                         <Button size="sm" variant={browseFilter.type === "all" ? "default" : "outline"} onClick={() => setBrowseFilter({ ...browseFilter, type: "all" })}>All</Button>
-                        <Button size="sm" variant={browseFilter.type === "veg" ? "default" : "outline"} className={browseFilter.type === "veg" ? "bg-green-600" : ""} onClick={() => setBrowseFilter({ ...browseFilter, type: browseFilter.type === "veg" ? "all" : "veg" })}>Veg</Button>
-                        <Button size="sm" variant={browseFilter.type === "non-veg" ? "default" : "outline"} className={browseFilter.type === "non-veg" ? "bg-red-600" : ""} onClick={() => setBrowseFilter({ ...browseFilter, type: browseFilter.type === "non-veg" ? "all" : "non-veg" })}>Non-Veg</Button>
+                        <Button size="sm" variant={browseFilter.type === "veg" ? "default" : "outline"} className={browseFilter.type === "veg" ? "bg-green-600 text-white" : ""} onClick={() => setBrowseFilter({ ...browseFilter, type: browseFilter.type === "veg" ? "all" : "veg" })}>Veg</Button>
+                        <Button size="sm" variant={browseFilter.type === "non-veg" ? "default" : "outline"} className={browseFilter.type === "non-veg" ? "bg-red-600 text-white" : ""} onClick={() => setBrowseFilter({ ...browseFilter, type: browseFilter.type === "non-veg" ? "all" : "non-veg" })}>Non-Veg</Button>
                       </div>
                     </div>
                     
@@ -430,7 +450,7 @@ const Schedule = () => {
                           <Card className="overflow-hidden border-0 glass-card shadow-xl hover:shadow-2xl transition-all duration-300 group rounded-[2rem]">
                             <CardContent className="flex flex-col sm:flex-row items-center gap-5 p-5">
                               <div className="h-24 w-24 rounded-2xl overflow-hidden bg-muted shrink-0 shadow-lg border-2 border-white/50 relative">
-                                {item.dishes?.image_url ? <img src={item.dishes.image_url} alt={item.dishes.name} className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="h-full w-full flex items-center justify-center text-4xl">🥘</div>}
+                                {item.dishes?.image_url ? <img src={item.dishes.image_url} alt={item.dishes.name} className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700" /> : <div className="h-full w-full flex items-center justify-center text-4xl bg-gradient-to-br from-muted to-muted/50">🥘</div>}
                                 <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded-full text-[8px] font-black ${item.dishes?.dish_type === 'non-veg' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
                                   {item.dishes?.dish_type === 'non-veg' ? 'NON-VEG' : 'VEG'}
                                 </div>
@@ -439,7 +459,7 @@ const Schedule = () => {
                                 <h4 className="font-serif font-bold text-xl group-hover:text-primary transition-colors">{item.dishes?.name}</h4>
                                 <p className="text-sm text-muted-foreground line-clamp-1 mt-1">{item.dishes?.description}</p>
                                 <div className="flex items-center gap-3 mt-2">
-                                  <span className="text-primary font-bold">₹{item.dishes?.selling_price}</span>
+                                  <span className="text-primary font-bold">₹{item.schedule_price || item.dishes?.selling_price}</span>
                                   {item.preorder_enabled && item.quantity_available > 0 && <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600">{item.quantity_available} left</Badge>}
                                   {item.preorder_enabled && item.quantity_available <= 0 && <Badge variant="destructive" className="text-[10px]">Sold Out</Badge>}
                                 </div>
@@ -456,59 +476,19 @@ const Schedule = () => {
               ) : (
                 <motion.div key="request" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6 pb-20">
                   {showExistingRequestWarning && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="bg-orange-50 dark:bg-orange-950/20 border-2 border-orange-200 rounded-[2rem] p-6"
-                    >
+                    <div className="bg-orange-50 dark:bg-orange-950/20 border-2 border-orange-200 rounded-[2rem] p-6">
                       <div className="flex items-start gap-4">
-                        <motion.div 
-                          animate={{ rotate: [0, -10, 10, 0] }}
-                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 2 }}
-                          className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center shrink-0"
-                        >
-                          <AlertTriangle className="h-6 w-6 text-orange-600" />
-                        </motion.div>
+                        <AlertTriangle className="h-6 w-6 text-orange-600 mt-1" />
                         <div className="flex-1">
-                          <h3 className="font-bold text-lg text-orange-700 dark:text-orange-400 mb-1">Request Already Exists!</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            There's already a request for this date. Please contact the kitchen to check if another order is possible.
-                          </p>
+                          <h3 className="font-bold text-lg text-orange-700 mb-1">Request Already Exists!</h3>
+                          <p className="text-sm text-muted-foreground mb-4">There's already a request for this date. Contact the kitchen to check if another order is possible.</p>
                           <div className="flex flex-wrap gap-3">
-                            <Button 
-                              size="sm" 
-                              className="rounded-full bg-green-600"
-                              onClick={() => {
-                                setShowExistingRequestWarning(false);
-                                setRequestCategory("");
-                                setViewMode('request');
-                              }}
-                            >
-                              Proceed Anyway
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="rounded-full"
-                              onClick={() => {
-                                setShowExistingRequestWarning(false);
-                                setViewMode('browse');
-                              }}
-                            >
-                              Go Back
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              className="rounded-full text-orange-600"
-                              onClick={() => window.open(`tel:+91750033196`, '_self')}
-                            >
-                              <PhoneCall className="h-4 w-4 mr-1" /> Call Kitchen
-                            </Button>
+                            <Button size="sm" className="rounded-full bg-green-600" onClick={() => { setShowExistingRequestWarning(false); setRequestCategory(""); setViewMode('request'); }}>Proceed Anyway</Button>
+                            <Button size="sm" variant="outline" className="rounded-full" onClick={() => { setShowExistingRequestWarning(false); setViewMode('browse'); }}>Go Back</Button>
                           </div>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
 
                   {!selectedDate ? (
@@ -519,7 +499,6 @@ const Schedule = () => {
                     </div>
                   ) : (
                     <div className="space-y-8">
-                      {/* Step 1: Category Selection - Smaller */}
                       <section className="space-y-3">
                         <h2 className="text-lg font-bold flex items-center gap-2">
                           <span className="text-base">🥬</span> Select Category
@@ -542,7 +521,6 @@ const Schedule = () => {
                         ) : <p className="text-muted-foreground text-sm">No categories available</p>}
                       </section>
 
-                      {/* Step 2: Veg/Non-Veg Selection - Based on category */}
                       {requestCategory && (
                         <section className="space-y-3">
                           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -550,66 +528,43 @@ const Schedule = () => {
                           </h2>
                           <div className="flex gap-2">
                             {getAvailableDishTypesForCategory(requestCategory).includes('veg') && (
-                              <Button 
-                                variant={requestForm.dishType === "veg" ? "default" : "outline"} 
-                                className={`rounded-full h-10 px-6 font-semibold text-sm ${requestForm.dishType === "veg" ? "bg-green-600" : ""}`} 
-                                onClick={() => setRequestForm({ ...requestForm, dishType: "veg" })}
-                              >
-                                🥗 Vegetarian
-                              </Button>
+                              <Button variant={requestForm.dishType === "veg" ? "default" : "outline"} className={`rounded-full h-10 px-6 font-semibold text-sm ${requestForm.dishType === "veg" ? "bg-green-600" : ""}`} onClick={() => setRequestForm({ ...requestForm, dishType: "veg" })}>🥗 Vegetarian</Button>
                             )}
                             {getAvailableDishTypesForCategory(requestCategory).includes('non-veg') && (
-                              <Button 
-                                variant={requestForm.dishType === "non-veg" ? "default" : "outline"} 
-                                className={`rounded-full h-10 px-6 font-semibold text-sm ${requestForm.dishType === "non-veg" ? "bg-red-600" : ""}`} 
-                                onClick={() => setRequestForm({ ...requestForm, dishType: "non-veg" })}
-                              >
-                                🍗 Non-Veg
-                              </Button>
+                              <Button variant={requestForm.dishType === "non-veg" ? "default" : "outline"} className={`rounded-full h-10 px-6 font-semibold text-sm ${requestForm.dishType === "non-veg" ? "bg-red-600" : ""}`} onClick={() => setRequestForm({ ...requestForm, dishType: "non-veg" })}>🍗 Non-Veg</Button>
                             )}
                           </div>
                         </section>
                       )}
 
-                      {/* Step 3: Dish Selection - Menu card style */}
                       {requestCategory && requestForm.dishType && (
                         <section className="space-y-3">
                           <h2 className="text-lg font-bold flex items-center gap-2">
                             <span className="text-base">🍽️</span> Choose Dish
                           </h2>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto p-1">
                             {dishes
                               .filter((d: any) => { 
                                 const cats = d.categories || d.category || []; 
                                 const typeMatch = d.dish_type === requestForm.dishType || d.dish_type === 'both';
                                 return cats.includes(requestCategory) && typeMatch;
                               })
-                              .slice(0, 8)
                               .map((d: any) => (
-                                <motion.div 
-                                  key={d.id} 
-                                  whileHover={{ y: -4 }} 
-                                  onClick={() => setRequestForm({ ...requestForm, dish: d.name, dishType: d.dish_type === 'both' ? requestForm.dishType : d.dish_type })} 
-                                  className={`cursor-pointer rounded-2xl overflow-hidden border-2 p-3 text-center transition-all ${requestForm.dish === d.name ? 'border-primary bg-primary/5' : 'border-transparent bg-card shadow-sm hover:border-primary/30'}`}
-                                >
+                                <motion.div key={d.id} whileHover={{ y: -4 }} onClick={() => setRequestForm({ ...requestForm, dish: d.name, dishType: d.dish_type === 'both' ? requestForm.dishType : d.dish_type })} className={`cursor-pointer rounded-2xl overflow-hidden border-2 p-3 text-center transition-all ${requestForm.dish === d.name ? 'border-primary bg-primary/5' : 'border-transparent bg-card shadow-sm hover:border-primary/30'}`}>
                                   <div className="aspect-square rounded-xl overflow-hidden mb-2 relative">
                                     {d.image_url ? <img src={d.image_url} alt={d.name} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-2xl bg-muted">🥘</div>}
-                                    <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8px] font-black ${d.dish_type === 'non-veg' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
-                                      {d.dish_type === 'non-veg' ? 'NON-VEG' : 'VEG'}
-                                    </div>
                                   </div>
                                   <h4 className="font-bold text-xs truncate">{d.name}</h4>
                                 </motion.div>
                               ))}
                           </div>
-                          <div className="bg-muted/30 p-4 rounded-2xl border border-border/50">
+                          <div className="bg-muted/30 p-4 rounded-2xl border border-border/50 mt-4">
                             <Label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Or type dish name</Label>
                             <Input placeholder="Your custom dish..." value={requestForm.dish} onChange={e => setRequestForm({ ...requestForm, dish: e.target.value })} className="rounded-xl h-10 mt-1 text-sm" />
                           </div>
                         </section>
                       )}
 
-                      {/* Step 4: Timing - Animated Slider */}
                       {requestCategory && requestForm.dish && (
                         <section className="space-y-4">
                           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -622,42 +577,20 @@ const Schedule = () => {
                                   key={ti.label}
                                   type="button"
                                   onClick={() => setRequestForm({ ...requestForm, timeIndex: i })}
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.95 }}
                                   className={`relative z-10 p-3 rounded-xl transition-all ${requestForm.timeIndex === i ? 'bg-background shadow-md' : 'hover:bg-background/40'}`}
                                 >
                                   <div className={`flex flex-col items-center gap-1 ${requestForm.timeIndex === i ? 'text-primary' : 'text-muted-foreground'}`}>
-                                    <div className="flex justify-center transition-transform duration-300" style={{ transform: requestForm.timeIndex === i ? 'scale(1.2)' : 'scale(1)' }}>
-                                      {ti.icon}
-                                    </div>
+                                    <div className="flex justify-center transition-transform duration-300" style={{ transform: requestForm.timeIndex === i ? 'scale(1.2)' : 'scale(1)' }}>{ti.icon}</div>
                                     <span className="text-[10px] font-bold uppercase tracking-tight">{ti.label}</span>
                                   </div>
                                 </motion.button>
                               ))}
-                              <motion.div 
-                                layout
-                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                className={`absolute top-1 bottom-1 rounded-xl bg-gradient-to-br ${timeIcons[requestForm.timeIndex].color} opacity-20`}
-                                style={{
-                                  width: '25%',
-                                  left: `${requestForm.timeIndex * 25}%`
-                                }}
-                              />
-                              <motion.div 
-                                layout
-                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                className="absolute -bottom-1 h-0.5 bg-primary rounded-full"
-                                style={{
-                                  width: '15%',
-                                  left: `${requestForm.timeIndex * 25 + 5}%`
-                                }}
-                              />
+                              <motion.div layout transition={{ type: "spring", stiffness: 300, damping: 30 }} className={`absolute top-1 bottom-1 rounded-xl bg-gradient-to-br ${timeIcons[requestForm.timeIndex].color} opacity-20`} style={{ width: '25%', left: `${requestForm.timeIndex * 25}%` }} />
                             </div>
                           </div>
                         </section>
                       )}
 
-                      {/* Step 5: Details */}
                       {requestCategory && requestForm.dish && (
                         <section className="space-y-3">
                           <h2 className="text-lg font-bold flex items-center gap-2">

@@ -97,13 +97,14 @@ const MenuManagement = () => {
         .upload(filePath, file);
       
       if (uploadError) {
-        // Try public URL fallback
+        // Try base64 fallback
         const reader = new FileReader();
         reader.onloadend = () => {
           setForm({ ...form, image_url: reader.result as string });
           toast.success("Image loaded!");
         };
         reader.readAsDataURL(file);
+        setUploading(false);
         return;
       }
       
@@ -184,16 +185,22 @@ const MenuManagement = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("Deleting dish with id:", id);
       const { error } = await supabase.from("dishes").delete().eq("id", id);
-      if (error) throw error;
+      if (error) {
+        console.error("Delete error:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-dishes"] });
-      toast.success("Dish deleted");
+      toast.success("Dish deleted successfully");
+      setDeleteConfirmOpen(false);
+      setDeleteTarget(null);
     },
     onError: (err: any) => {
       console.error("Delete error:", err);
-      toast.error(err.message || "Failed to delete dish");
+      toast.error(err.message || "Failed to delete dish. Please check if you have permission.");
     },
   });
 

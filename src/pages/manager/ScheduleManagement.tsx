@@ -11,8 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Trash2, Loader2, CalendarDays, Edit2, Users, CheckCircle2, XCircle, Clock, Package, Filter, Minus, Plus as PlusIcon } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, Trash2, Loader2, CalendarDays, Edit2, Users, CheckCircle2, XCircle, Clock, Package, Filter, Minus, Plus as PlusIcon, Banknote } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -20,15 +20,15 @@ const ScheduleManagement = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isEditRequestOpen, setIsEditRequestOpen] = useState(false);
+  const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [editingRequest, setEditingRequest] = useState<any>(null);
+  const [approvingRequest, setApprovingRequest] = useState<any>(null);
+  const [approvalPrice, setApprovalPrice] = useState<number>(0);
+  
   const [form, setForm] = useState({ dish_id: "", schedule_date: "", quantity_available: 10, preorder_enabled: true, category: "" });
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [requestForm, setRequestForm] = useState({ dish_name: "", quantity: 1, request_time: "Evening", occasion: "", notes: "" });
   
-  // Custom delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'schedule' | 'request'; name: string } | null>(null);
 
@@ -69,20 +69,25 @@ const ScheduleManagement = () => {
     },
   });
 
-  const requestedDates = specialRequests.map((r: any) => new Date(r.request_date));
-  const pendingDates = specialRequests.filter((r: any) => r.status === 'pending').map((r: any) => new Date(r.request_date));
-  const approvedDates = specialRequests.filter((r: any) => r.status === 'approved').map((r: any) => new Date(r.request_date));
-  const rejectedDates = specialRequests.filter((r: any) => r.status === 'rejected').map((r: any) => new Date(r.request_date));
+  const parseDate = (dateStr: string) => {
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    } catch (e) {
+      return new Date(dateStr);
+    }
+  };
+
+  const pendingDates = specialRequests.filter((r: any) => r.status === 'pending').map((r: any) => parseDate(r.request_date));
+  const approvedDates = specialRequests.filter((r: any) => r.status === 'approved').map((r: any) => parseDate(r.request_date));
+  const rejectedDates = specialRequests.filter((r: any) => r.status === 'rejected').map((r: any) => parseDate(r.request_date));
+  const scheduledDates = scheduled.map((item: any) => parseDate(item.schedule_date));
 
   useEffect(() => {
     const channel = supabase
       .channel('manager-schedule-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_menu' }, () => {
         queryClient.invalidateQueries({ queryKey: ['all-scheduled'] });
-        queryClient.invalidateQueries({ queryKey: ['scheduled-menu'] });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['all-dishes'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'special_requests' }, () => {
         queryClient.invalidateQueries({ queryKey: ['all-special-requests'] });
@@ -91,8 +96,6 @@ const ScheduleManagement = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
-
-  const requestStatuses = ["pending", "approved", "rejected"];
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -114,26 +117,39 @@ const ScheduleManagement = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const { error } = await supabase
-        .from("scheduled_menu")
-        .update({
-          dish_id: payload.dish_id,
-          schedule_date: payload.schedule_date,
-          date: payload.schedule_date,
-          quantity_available: payload.quantity_available,
-          preorder_enabled: payload.preorder_enabled
-        })
-        .eq("id", payload.id);
+  const updateRequestStatus = useMutation({
+    mutationFn: async ({ id, status, price, dishName, userId }: { id: string, status: string, price?: number, dishName?: string, userId?: string }) => {
+      const updates: any = { status };
+      if (price !== undefined) updates.price = price;
+      
+      const { error } = await (supabase.from("special_requests" as any).update(updates).eq("id", id) as any);
       if (error) throw error;
+
+      if (status === "approved" && userId) {
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          title: "Request Approved! 💳",
+          message: `Your request for "${dishName}" is approved at ₹${price}. Add it to cart now!`,
+          type: "order",
+          reference_id: id
+        } as any);
+      }
+      
+      if (status === "completed" && userId) {
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          title: "Request Completed! 🎉",
+          message: `Your special request for "${dishName}" has been completed.`,
+          type: "order",
+          reference_id: id
+        } as any);
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-scheduled"] });
-      setIsEditOpen(false);
-      toast.success("Schedule updated!");
+      queryClient.invalidateQueries({ queryKey: ["all-special-requests"] });
+      setIsApproveOpen(false);
+      toast.success("Request status updated");
     },
-    onError: (err: any) => toast.error(err.message),
   });
 
   const deleteMutation = useMutation({
@@ -166,71 +182,16 @@ const ScheduleManagement = () => {
     setDeleteTarget(null);
   };
 
-  const updateRequestStatus = useMutation({
-    mutationFn: async ({ id, status, quantity, dishName, userId, requestDate }: { id: string, status: string, quantity?: number, dishName?: string, userId?: string, requestDate?: string }) => {
-      const { error } = await (supabase.from("special_requests" as any).update({ status }).eq("id", id) as any);
-      if (error) throw error;
-
-      // When completed, notify user and move to orders
-      if (status === "completed" && userId) {
-        await supabase.from("notifications").insert({
-          user_id: userId,
-          title: "Order Completed! 🎉",
-          message: `Your special request for "${dishName}" has been completed. Enjoy your meal!`,
-          type: "order",
-          reference_id: id
-        } as any);
-      }
-
-      // When approved, notify user to complete payment
-      if (status === "approved" && userId) {
-        await supabase.from("notifications").insert({
-          user_id: userId,
-          title: "Request Approved! 💳",
-          message: `Your special request for "${dishName}" has been approved. Please complete your payment to confirm the order.`,
-          type: "order",
-          reference_id: id
-        } as any);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-special-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["all-dishes"] });
-      toast.success("Request status updated");
-    },
-  });
-
-  const updateRequestMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const { error } = await (supabase.from("special_requests" as any).update({
-        dish_name: payload.dish_name,
-        quantity: payload.quantity,
-        request_time: payload.request_time,
-        occasion: payload.occasion,
-        notes: payload.notes,
-        status: payload.status
-      }).eq("id", payload.id) as any);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-special-requests"] });
-      setIsEditRequestOpen(false);
-      toast.success("Request updated");
-    },
-  });
-
-  const scheduledDates = scheduled.map((item: any) => new Date(item.schedule_date));
-
   const filteredScheduled = selectedDate
     ? scheduled.filter((s: any) => s.schedule_date === format(selectedDate, "yyyy-MM-dd"))
-    : scheduled;
+    : [];
 
   const filteredRequests = selectedDate
     ? specialRequests.filter((r: any) => r.request_date === format(selectedDate, "yyyy-MM-dd"))
-    : specialRequests;
+    : [];
 
   const placedRequests = filteredRequests.filter((r: any) => r.status === 'pending');
-  const confirmedRequests = filteredRequests.filter((r: any) => r.status === 'approved');
+  const approvedRequests = filteredRequests.filter((r: any) => r.status === 'approved');
   const rejectedRequests = filteredRequests.filter((r: any) => r.status === 'rejected');
   const doneRequests = filteredRequests.filter((r: any) => r.status === 'completed');
 
@@ -239,7 +200,7 @@ const ScheduleManagement = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-serif font-bold tracking-tight">Schedule Management</h2>
-          <p className="text-muted-foreground">Manage your kitchen's timeline and custom requests.</p>
+          <p className="text-muted-foreground">Manage kitchen timeline and user requests.</p>
         </div>
 
         <Dialog open={isAddOpen} onOpenChange={(open) => { 
@@ -253,125 +214,59 @@ const ScheduleManagement = () => {
         }}>
           <DialogTrigger asChild>
             <Button className="gap-2 rounded-2xl h-12 px-6 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
-              <Plus className="h-5 w-5" /> Schedule New Dish
+              <Plus className="h-5 w-5" /> Schedule Dish
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-[2rem] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="rounded-[2rem] sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle className="text-2xl font-serif font-bold">Plan a Meal</DialogTitle>
             </DialogHeader>
             <div className="grid gap-6 py-4">
-              {/* Step 1: Date Selection */}
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">1. Select Date</Label>
-                <Input 
-                  type="date" 
-                  value={form.schedule_date} 
-                  onChange={(e) => setForm({ ...form, schedule_date: e.target.value })} 
-                  className="rounded-xl h-12" 
-                />
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">1. Date</Label>
+                <Input type="date" value={form.schedule_date} onChange={(e) => setForm({ ...form, schedule_date: e.target.value })} className="rounded-xl h-12" />
               </div>
 
-              {/* Step 2: Category Selection */}
-              {form.schedule_date && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">2. Select Category</Label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button 
-                      size="sm" 
-                      variant={categoryFilter === "all" ? "default" : "outline"} 
-                      onClick={() => setCategoryFilter("all")}
-                      className="rounded-full"
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">2. Select Dish</Label>
+                <div className="grid grid-cols-2 gap-3 max-h-[250px] overflow-y-auto p-1">
+                  {dishes.map((d: any) => (
+                    <div
+                      key={d.id}
+                      onClick={() => setForm({ ...form, dish_id: d.id })}
+                      className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        form.dish_id === d.id ? "border-primary bg-primary/10" : "border-transparent bg-muted hover:bg-muted/80"
+                      }`}
                     >
-                      All
-                    </Button>
-                    {availableCategories.map((cat: string) => (
-                      <Button
-                        key={cat}
-                        size="sm"
-                        variant={categoryFilter === cat ? "default" : "outline"}
-                        onClick={() => setCategoryFilter(cat)}
-                        className="rounded-full capitalize"
-                      >
-                        {cat}
-                      </Button>
-                    ))}
-                  </div>
+                      <p className="font-bold text-xs truncate">{d.name}</p>
+                      <span className="text-[10px] text-muted-foreground">₹{d.selling_price}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
 
-              {/* Step 3: Dish Selection */}
-              {form.schedule_date && categoryFilter && (
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">3. Select Dish</Label>
-                  <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto">
-                    {filteredDishesByCategory.map((d: any) => (
-                      <div
-                        key={d.id}
-                        onClick={() => setForm({ ...form, dish_id: d.id })}
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                          form.dish_id === d.id 
-                            ? "border-primary bg-primary/10" 
-                            : "border-transparent bg-muted hover:bg-muted/80"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="h-10 w-10 rounded-lg bg-background overflow-hidden shrink-0">
-                            {d.image_url ? (
-                              <img src={d.image_url} alt={d.name} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="h-full w-full flex items-center justify-center text-lg">🍲</div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{d.name}</p>
-                            <span className={`text-[10px] font-bold ${d.dish_type === 'non-veg' ? 'text-red-500' : 'text-green-500'}`}>
-                              {d.dish_type === 'non-veg' ? 'NON-VEG' : 'VEG'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Portions</Label>
+                  <Input type="number" value={form.quantity_available} onChange={(e) => setForm({ ...form, quantity_available: Number(e.target.value) })} className="rounded-xl h-12" />
+                </div>
+                <div className="flex flex-col justify-end pb-1">
+                  <div className="flex items-center justify-between bg-muted/30 p-3 rounded-xl h-12 border">
+                    <span className="text-xs font-bold">Pre-order</span>
+                    <Switch checked={form.preorder_enabled} onCheckedChange={(v) => setForm({ ...form, preorder_enabled: v })} />
                   </div>
                 </div>
-              )}
-
-              {/* Step 4: Quantity & Preorder */}
-              {form.dish_id && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Portions</Label>
-                      <div className="flex items-center gap-2 bg-muted rounded-xl h-12 px-3">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setForm({ ...form, quantity_available: Math.max(1, form.quantity_available - 1) })}>
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="flex-1 text-center font-bold">{form.quantity_available}</span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setForm({ ...form, quantity_available: form.quantity_available + 1 })}>
-                          <PlusIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">&nbsp;</Label>
-                      <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-border/50 h-12">
-                        <span className="text-sm font-bold">Pre-orders</span>
-                        <Switch checked={form.preorder_enabled} onCheckedChange={(v) => setForm({ ...form, preorder_enabled: v })} />
-                      </div>
-                    </div>
-                  </div>
-                  <Button onClick={() => addMutation.mutate()} disabled={addMutation.isPending || !form.dish_id || !form.schedule_date} className="h-14 rounded-2xl text-lg font-bold">
-                    {addMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Schedule Dish"}
-                  </Button>
-                </>
-              )}
+              </div>
+              
+              <Button onClick={() => addMutation.mutate()} disabled={addMutation.isPending || !form.dish_id} className="h-14 rounded-2xl text-lg font-bold">
+                {addMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Schedule Now"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="grid lg:grid-cols-[340px_1fr] gap-8">
-        {/* Calendar Sidebar */}
         <div className="space-y-6">
           <Card className="glass-card rounded-[2.5rem] border-0 shadow-xl overflow-hidden">
             <CardHeader className="pb-2">
@@ -393,316 +288,167 @@ const ScheduleManagement = () => {
                 }}
                 modifiersStyles={{
                   scheduled: { fontWeight: "black", color: "hsl(var(--primary))", background: "hsl(var(--primary)/0.1)" },
-                  pending: { border: "2px solid hsl(33.3 90% 50%)", borderRadius: "12px", background: "hsl(33.3 90% 50% / 0.1)" },
-                  approved: { border: "2px solid hsl(142 76% 36%)", borderRadius: "12px", background: "hsl(142 76% 36% / 0.1)" },
-                  rejected: { border: "2px solid hsl(0 84% 60%)", borderRadius: "12px", background: "hsl(0 84% 60% / 0.1)" }
+                  pending: { border: "2px solid hsl(33.3 90% 50%)", borderRadius: "12px" },
+                  approved: { border: "2px solid hsl(142 76% 36%)", borderRadius: "12px" },
+                  rejected: { border: "2px solid hsl(0 84% 60%)", borderRadius: "12px" }
                 }}
-                className="rounded-2xl border shadow-inner bg-background/40 backdrop-blur-sm p-4"
+                className="rounded-2xl border shadow-inner p-2 mx-auto"
               />
+              <div className="grid grid-cols-2 gap-2 mt-4 px-2">
+                <div className="flex items-center gap-2 text-[10px] font-bold"><div className="h-2 w-2 rounded-full bg-primary" /> Scheduled</div>
+                <div className="flex items-center gap-2 text-[10px] font-bold"><div className="h-2 w-2 rounded-full bg-orange-500" /> Pending Req</div>
+                <div className="flex items-center gap-2 text-[10px] font-bold"><div className="h-2 w-2 rounded-full bg-green-500" /> Approved</div>
+                <div className="flex items-center gap-2 text-[10px] font-bold"><div className="h-2 w-2 rounded-full bg-red-500" /> Rejected</div>
+              </div>
             </CardContent>
           </Card>
-
-
         </div>
 
-        {/* Content Area */}
         <div className="space-y-8">
-          {/* Scheduled Items for Selected Day */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                Today's Plan
-                {selectedDate && <span className="text-muted-foreground text-sm font-medium">({format(selectedDate, "MMM d, yyyy")})</span>}
-              </h3>
-              <Badge variant="outline" className="rounded-full bg-primary/5 text-primary border-primary/20">{filteredScheduled.length} Items</Badge>
-            </div>
-
+            <h3 className="text-xl font-bold flex items-center gap-2">
+              Today's Plan
+              {selectedDate && <span className="text-muted-foreground text-sm font-medium">({format(selectedDate, "MMM d")})</span>}
+            </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               {filteredScheduled.map((item: any) => (
-                <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-                  <Card className="glass-card border-0 shadow-lg group hover:shadow-xl transition-all duration-300 rounded-[2rem]">
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="h-20 w-20 rounded-2xl bg-muted overflow-hidden shrink-0 border border-white/20">
-                        {item.dishes?.image_url ? (
-                          <img src={item.dishes.image_url} alt={item.dishes?.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-3xl">🍲</div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-lg leading-tight truncate">{item.dishes?.name}</h4>
-                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground font-medium">
-                          <span className="flex items-center gap-1">📦 {item.quantity_available}</span>
-                          {item.preorder_enabled && <Badge variant="secondary" className="text-[9px] h-4 bg-green-500/10 text-green-600 border-green-500/20">PRE-ORDER</Badge>}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full" onClick={() => { setEditingItem(item); setIsEditOpen(true); }}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDeleteClick(item.id, 'schedule', item.dishes?.name || 'this item')}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                <Card key={item.id} className="glass-card border-0 shadow-lg rounded-[2rem] overflow-hidden">
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-xl bg-muted overflow-hidden shrink-0">
+                      {item.dishes?.image_url && <img src={item.dishes.image_url} alt="" className="h-full w-full object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold truncate">{item.dishes?.name}</h4>
+                      <p className="text-xs text-muted-foreground">Qty: {item.quantity_available} | {item.preorder_enabled ? 'Pre-order' : 'Immediate'}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(item.id, 'schedule', item.dishes?.name)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
               ))}
-              {filteredScheduled.length === 0 && (
-                <div className="col-span-full py-12 text-center glass-card rounded-[2.5rem] border-2 border-dashed border-border/40">
-                  <p className="text-muted-foreground italic">No production scheduled for this date.</p>
-                </div>
-              )}
+              {filteredScheduled.length === 0 && <p className="text-xs italic text-muted-foreground col-span-full py-4 px-6 bg-muted/20 rounded-2xl">No items scheduled for this date.</p>}
             </div>
           </section>
 
-          {/* Special Requests - 4 Columns */}
           <section className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center gap-3">
-              Special Requests
-              <Badge variant="secondary" className="rounded-full bg-orange-500 text-white border-0">{filteredRequests.length}</Badge>
-            </h3>
-            
+            <h3 className="text-xl font-bold">User Requests</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Pending Column */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-orange-500/10 text-orange-600">
-                  <Clock className="h-5 w-5" />
-                  <h3 className="font-bold">Pending</h3>
-                  <Badge variant="secondary" className="ml-auto">{placedRequests.length}</Badge>
-                </div>
-                <div className="space-y-3">
-                  {placedRequests.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-xl">No pending requests</div>
-                  ) : (
-                    placedRequests.map((req: any) => (
-                      <Card key={req.id} className="overflow-hidden border-0 glass-card shadow-lg rounded-[1.5rem]">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <div className="text-xs text-muted-foreground mb-2">Qty: {req.quantity} | {req.request_time}</div>
-                          <div className="flex gap-2">
-                            <Button size="sm" className="flex-1 h-8 rounded-full bg-green-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'approved', dishName: req.dish_name, userId: req.user_id })}>Approve</Button>
-                            <Button size="sm" variant="outline" className="flex-1 h-8 rounded-full" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'rejected', dishName: req.dish_name, userId: req.user_id })}>Reject</Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
+              {/* Pending Requests */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-orange-600 font-black text-xs uppercase tracking-widest"><Clock className="h-4 w-4" /> Pending</div>
+                {placedRequests.map((req: any) => (
+                  <Card key={req.id} className="shadow-md rounded-2xl border-l-4 border-l-orange-500">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <span className="font-bold text-sm leading-tight">{req.dish_name}</span>
+                        <Badge variant="outline" className="text-[8px] uppercase">{req.request_time}</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Qty: {req.quantity} | User: {req.profiles?.email.split('@')[0]}</p>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1 h-8 rounded-full text-[10px] bg-green-500" onClick={() => { setApprovingRequest(req); setIsApproveOpen(true); }}>Approve</Button>
+                        <Button size="sm" variant="outline" className="flex-1 h-8 rounded-full text-[10px] text-red-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'rejected' })}>Reject</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
 
-              {/* Approved Column */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-500/10 text-blue-600">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <h3 className="font-bold">Approved</h3>
-                  <Badge variant="secondary" className="ml-auto">{confirmedRequests.length}</Badge>
-                </div>
-                <div className="space-y-3">
-                  {confirmedRequests.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-xl">No approved requests</div>
-                  ) : (
-                    confirmedRequests.map((req: any) => (
-                      <Card key={req.id} className="overflow-hidden border-0 glass-card shadow-lg rounded-[1.5rem]">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <div className="text-xs text-muted-foreground mb-2">Qty: {req.quantity} | {req.request_time}</div>
-                          <Button size="sm" className="w-full h-8 rounded-full bg-green-500" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'completed', quantity: req.quantity, dishName: req.dish_name, userId: req.user_id })}>Mark Completed</Button>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
+              {/* Approved Requests */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-green-600 font-black text-xs uppercase tracking-widest"><CheckCircle2 className="h-4 w-4" /> Approved</div>
+                {approvedRequests.map((req: any) => (
+                  <Card key={req.id} className="shadow-md rounded-2xl border-l-4 border-l-green-500 bg-green-50/50">
+                    <CardContent className="p-3">
+                      <p className="font-bold text-sm">{req.dish_name}</p>
+                      <p className="text-[10px] font-bold text-primary">Price: ₹{req.price}</p>
+                      <Button size="sm" className="w-full mt-2 h-7 rounded-full text-[10px]" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'completed', dishName: req.dish_name, userId: req.user_id })}>Mark Done</Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
 
-              {/* Completed Column */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/10 text-green-600">
-                  <Package className="h-5 w-5" />
-                  <h3 className="font-bold">Completed</h3>
-                  <Badge variant="secondary" className="ml-auto">{doneRequests.length}</Badge>
-                </div>
-                <div className="space-y-3">
-                  {doneRequests.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-xl">No completed requests</div>
-                  ) : (
-                    doneRequests.map((req: any) => (
-                      <Card key={req.id} className="overflow-hidden border-0 glass-card shadow-lg rounded-[1.5rem] opacity-75">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <div className="text-xs text-muted-foreground">Qty: {req.quantity} | {req.request_time}</div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
+              {/* Completed Requests */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-blue-600 font-black text-xs uppercase tracking-widest"><Package className="h-4 w-4" /> Completed</div>
+                {doneRequests.map((req: any) => (
+                  <Card key={req.id} className="shadow-sm rounded-2xl opacity-60">
+                    <CardContent className="p-3">
+                      <p className="font-bold text-xs">{req.dish_name}</p>
+                      <p className="text-[10px]">₹{req.price}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-
-              {/* Rejected Column */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-600">
-                  <XCircle className="h-5 w-5" />
-                  <h3 className="font-bold">Rejected</h3>
-                  <Badge variant="secondary" className="ml-auto">{rejectedRequests.length}</Badge>
-                </div>
-                <div className="space-y-3">
-                  {rejectedRequests.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-xl">No rejected requests</div>
-                  ) : (
-                    rejectedRequests.map((req: any) => (
-                      <Card key={req.id} className="overflow-hidden border-0 glass-card shadow-lg rounded-[1.5rem] opacity-75">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <div className="text-xs text-muted-foreground">Qty: {req.quantity} | {req.request_time}</div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
+              
+              {/* Rejected Requests */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-red-600 font-black text-xs uppercase tracking-widest"><XCircle className="h-4 w-4" /> Rejected</div>
+                {rejectedRequests.map((req: any) => (
+                  <Card key={req.id} className="shadow-sm rounded-2xl opacity-60">
+                    <CardContent className="p-3">
+                      <p className="font-bold text-xs">{req.dish_name}</p>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}><Trash2 className="h-3 w-3" /></Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
           </section>
         </div>
       </div>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="rounded-[2.5rem] sm:max-w-[425px]">
+      {/* Approval Dialog - Set Price */}
+      <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
+        <DialogContent className="rounded-[2rem] max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-serif font-bold">Edit Schedule</DialogTitle>
+            <DialogTitle>Approve Special Request</DialogTitle>
           </DialogHeader>
-          {editingItem && (
-            <div className="grid gap-6 py-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Dish</Label>
-                <Select defaultValue={editingItem.dish_id} onValueChange={(v) => setEditingItem({ ...editingItem, dish_id: v })}>
-                  <SelectTrigger className="rounded-xl h-12"><SelectValue /></SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {dishes.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Date</Label>
-                  <Input type="date" value={editingItem.schedule_date} onChange={(e) => setEditingItem({ ...editingItem, schedule_date: e.target.value })} className="rounded-xl h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Quantity</Label>
-                  <Input type="number" value={editingItem.quantity_available} onChange={(e) => setEditingItem({ ...editingItem, quantity_available: Number(e.target.value) })} className="rounded-xl h-12" />
-                </div>
-              </div>
-              <div className="flex items-center justify-between bg-muted/30 p-4 rounded-2xl">
-                <Label className="font-bold">Enable Pre-orders</Label>
-                <Switch checked={editingItem.preorder_enabled} onCheckedChange={(v) => setEditingItem({ ...editingItem, preorder_enabled: v })} />
-              </div>
-              <Button onClick={() => updateMutation.mutate(editingItem)} className="h-14 rounded-2xl text-lg font-bold">
-                Save Changes
-              </Button>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-muted/50 rounded-2xl">
+              <p className="text-sm font-bold">{approvingRequest?.dish_name}</p>
+              <p className="text-xs text-muted-foreground">Quantity: {approvingRequest?.quantity}</p>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      {/* Edit Request Dialog */}
-      <Dialog open={isEditRequestOpen} onOpenChange={setIsEditRequestOpen}>
-        <DialogContent className="rounded-[2.5rem] sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-serif font-bold">Edit Request</DialogTitle>
-          </DialogHeader>
-          {editingRequest && (
-            <div className="grid gap-6 py-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Dish Name</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-black uppercase tracking-widest">Set Price for User (₹)</Label>
+              <div className="relative">
+                <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input 
-                  value={requestForm.dish_name} 
-                  onChange={(e) => setRequestForm({ ...requestForm, dish_name: e.target.value })} 
-                  className="rounded-xl h-12" 
+                  type="number" 
+                  value={approvalPrice || ''} 
+                  onChange={(e) => setApprovalPrice(Number(e.target.value))} 
+                  className="pl-10 h-12 rounded-xl text-lg font-bold"
+                  placeholder="0"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Quantity</Label>
-                  <Input 
-                    type="number" 
-                    value={requestForm.quantity} 
-                    onChange={(e) => setRequestForm({ ...requestForm, quantity: Number(e.target.value) })} 
-                    className="rounded-xl h-12" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Timing</Label>
-                  <Select value={requestForm.request_time} onValueChange={(v) => setRequestForm({ ...requestForm, request_time: v })}>
-                    <SelectTrigger className="rounded-xl h-12"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="Morning">Morning</SelectItem>
-                      <SelectItem value="Afternoon">Afternoon</SelectItem>
-                      <SelectItem value="Evening">Evening</SelectItem>
-                      <SelectItem value="Night">Night</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Occasion</Label>
-                <Input 
-                  value={requestForm.occasion} 
-                  onChange={(e) => setRequestForm({ ...requestForm, occasion: e.target.value })} 
-                  className="rounded-xl h-12" 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Notes</Label>
-                <Input 
-                  value={requestForm.notes} 
-                  onChange={(e) => setRequestForm({ ...requestForm, notes: e.target.value })} 
-                  className="rounded-xl h-12" 
-                />
-              </div>
-              <Button 
-                onClick={() => updateRequestMutation.mutate({ ...editingRequest, ...requestForm })} 
-                className="h-14 rounded-2xl text-lg font-bold"
-              >
-                Save Changes
-              </Button>
             </div>
-          )}
+            <Button 
+              className="w-full h-12 rounded-xl bg-green-600 font-bold"
+              disabled={!approvalPrice}
+              onClick={() => updateRequestStatus.mutate({ 
+                id: approvingRequest.id, 
+                status: 'approved', 
+                price: approvalPrice,
+                dishName: approvingRequest.dish_name,
+                userId: approvingRequest.user_id
+              })}
+            >
+              Confirm Approval
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Custom Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-serif font-bold">Confirm Delete</AlertDialogTitle>
-            <AlertDialogDescription className="text-base">
-              Are you sure you want to delete <strong>"{deleteTarget?.name}"</strong>? This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to remove "{deleteTarget?.name}"? This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-3">
-            <AlertDialogCancel className="rounded-full h-11">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="rounded-full h-11 bg-destructive hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="rounded-full bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

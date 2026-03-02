@@ -2,8 +2,12 @@
 ALTER TABLE scheduled_menu 
 ADD COLUMN IF NOT EXISTS schedule_price NUMERIC DEFAULT NULL;
 
--- Verify the column was added
-SELECT column_name, data_type 
+-- Add price column to special_requests table
+ALTER TABLE special_requests
+ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT NULL;
+
+-- Verify the columns
+SELECT table_name, column_name, data_type 
 FROM information_schema.columns 
-WHERE table_name = 'scheduled_menu' 
-ORDER BY ordinal_position;
+WHERE table_name IN ('scheduled_menu', 'special_requests')
+ORDER BY table_name, ordinal_position;
