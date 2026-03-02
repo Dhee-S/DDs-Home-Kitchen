@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Loader2, Calendar, Star, Flame, CalendarRange, Check } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, Edit, Trash2, Loader2, Calendar, Star, Flame, CalendarRange, Check, Upload, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, addDays } from "date-fns";
@@ -20,7 +21,8 @@ const emptyDish = {
   categories: [] as string[],
   dish_type: "veg" as "veg" | "non-veg",
   stock_quantity: 10,
-  image_url: ""
+  image_url: "",
+  is_available: true
 };
 
 const MenuManagement = () => {
@@ -29,6 +31,12 @@ const MenuManagement = () => {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyDish);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   
   // Schedule form state
   const [scheduleType, setScheduleType] = useState<"today" | "week">("today");
@@ -59,9 +67,52 @@ const MenuManagement = () => {
     ? dishes.filter((d: any) => (d.categories || d.category || []).includes(scheduleCategory))
     : dishes;
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `dishes/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('dish-images')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        // Try public URL fallback
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setForm({ ...form, image_url: reader.result as string });
+          toast.success("Image loaded!");
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('dish-images')
+        .getPublicUrl(filePath);
+      
+      setForm({ ...form, image_url: publicUrl });
+      toast.success("Image uploaded!");
+    } catch (err) {
+      // Fallback to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm({ ...form, image_url: reader.result as string });
+        toast.success("Image loaded (local)!");
+      };
+      reader.readAsDataURL(file);
+    }
+    setUploading(false);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = { ...form, is_available: form.stock_quantity > 0 };
+      const payload = { ...form, is_available: form.stock_quantity > 0 && form.is_available };
       if (editId) {
         const { error } = await supabase.from("dishes").update(payload).eq("id", editId);
         if (error) throw error;
@@ -142,10 +193,35 @@ const MenuManagement = () => {
       categories: dish.categories || [],
       dish_type: dish.dish_type || "veg",
       stock_quantity: dish.stock_quantity || 0,
-      image_url: dish.image_url || ""
-    });
+      image_url: dish.image_url || "",
+      is_available: dish.is_available !== false
+    } as typeof form);
     setOpen(true);
   };
+
+  const handleDeleteClick = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget.id);
+    }
+    setDeleteConfirmOpen(false);
+    setDeleteTarget(null);
+  };
+
+  const toggleVisibility = useMutation({
+    mutationFn: async ({ id, isAvailable }: { id: string; isAvailable: boolean }) => {
+      const { error } = await supabase.from("dishes").update({ is_available: isAvailable }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-dishes"] });
+      toast.success("Dish visibility updated!");
+    },
+  });
 
   return (
     <div>
@@ -363,7 +439,64 @@ const MenuManagement = () => {
                   </div>
                 </div>
 
-                <div><Label>Image URL</Label><Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." /></div>
+                <div className="space-y-2">
+                  <Label>Image</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="h-16 w-16 rounded-xl overflow-hidden bg-muted shrink-0 border-2 border-dashed border-border">
+                      {form.image_url ? (
+                        <img src={form.image_url} alt="Preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                          <Upload className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="w-full rounded-xl"
+                      >
+                        {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                        {uploading ? "Uploading..." : "Upload Image"}
+                      </Button>
+                      <Input 
+                        value={form.image_url} 
+                        onChange={(e) => setForm({ ...form, image_url: e.target.value })} 
+                        placeholder="Or paste image URL"
+                        className="mt-2 rounded-xl text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visibility Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    {form.is_available ? <Eye className="h-4 w-4 text-green-500" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                    <span className="text-sm font-medium">Show in Menu</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={form.is_available ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setForm({ ...form, is_available: !form.is_available })}
+                    className="rounded-full"
+                  >
+                    {form.is_available ? "Visible" : "Hidden"}
+                  </Button>
+                </div>
+
                 <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !form.name} className="w-full">
                   {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editId ? "Update Dish" : "Add Dish"}
                 </Button>
@@ -420,17 +553,20 @@ const MenuManagement = () => {
 
       <div className="grid gap-3">
         {dishes.map((dish: any) => (
-          <Card key={dish.id}>
+          <Card key={dish.id} className={dish.is_available === false ? "opacity-60" : ""}>
             <CardContent className="flex items-center gap-4 p-4">
               <div className="h-14 w-14 rounded-lg overflow-hidden bg-muted shrink-0">
                 {dish.image_url ? <img src={dish.image_url} alt={dish.name} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center">🍽️</div>}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold truncate">{dish.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold truncate">{dish.name}</h3>
+                  {dish.is_available === false && <Badge variant="secondary" className="text-[10px] bg-muted">Hidden</Badge>}
+                </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="text-primary font-medium">₹{dish.selling_price}</span>
                   <Badge variant="outline" className={dish.dish_type === 'veg' ? 'text-green-600' : 'text-red-600'}>{dish.dish_type === 'veg' ? 'VEG' : 'NON-VEG'}</Badge>
-                  <Badge variant={dish.is_available ? "default" : "destructive"} className="text-[10px]">{dish.is_available ? `${dish.stock_quantity} in stock` : "Out of Stock"}</Badge>
+                  <Badge variant={dish.is_available && dish.stock_quantity > 0 ? "default" : "destructive"} className="text-[10px]">{dish.is_available && dish.stock_quantity > 0 ? `${dish.stock_quantity} in stock` : "Out of Stock"}</Badge>
                 </div>
                 {dish.categories?.length > 0 && (
                   <div className="flex gap-1 mt-1">
@@ -438,12 +574,41 @@ const MenuManagement = () => {
                   </div>
                 )}
               </div>
-              <Button variant="ghost" size="icon" onClick={() => openEdit(dish)}><Edit className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(dish.id)}><Trash2 className="h-4 w-4" /></Button>
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className={dish.is_available ? "text-muted-foreground hover:text-primary" : "text-primary hover:bg-primary/10"} 
+                  onClick={() => toggleVisibility.mutate({ id: dish.id, isAvailable: !dish.is_available })}
+                  title={dish.is_available ? "Hide dish" : "Show dish"}
+                >
+                  {dish.is_available ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => openEdit(dish)}><Edit className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(dish.id, dish.name)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-serif font-bold">Delete Dish</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              Are you sure you want to delete <strong>"{deleteTarget?.name}"</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel className="rounded-full h-11">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="rounded-full h-11 bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
