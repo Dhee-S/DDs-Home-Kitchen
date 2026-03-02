@@ -251,7 +251,7 @@ const Index = () => {
                   </motion.div>
                   <h3 className="text-xl font-bold text-orange-600 dark:text-orange-400">Chef is Preparing Something Special!</h3>
                   <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-                    Our master cook Ponnukodi S is busy in the kitchen. <br className="hidden sm:block" />
+                    Our cook is busy in the kitchen. <br className="hidden sm:block" />
                     Want something specific? Schedule your request!
                   </p>
                   <Button 
@@ -267,19 +267,21 @@ const Index = () => {
                   {todaysSpecialDishes.map((item: any) => {
                     const dish = item.dishes;
                     const { avg, count } = getAvgRating(dish?.id);
+                    const displayPrice = item.schedule_price || dish?.selling_price;
                     return (
                       <DishCard
                         key={dish?.id}
                         id={dish?.id}
                         name={dish?.name}
                         description={dish?.description}
-                        price={dish?.selling_price}
+                        price={displayPrice}
                         imageUrl={dish?.image_url}
                         stockQuantity={item.quantity_available || dish?.stock_quantity}
                         category={dish?.category}
                         avgRating={avg}
                         reviewCount={count}
                         dish_type={dish?.dish_type}
+                        scheduledMenuId={item.id}
                       />
                     );
                   })}
@@ -308,19 +310,21 @@ const Index = () => {
                   {weeklySpecialDishes.slice(0, 8).map((item: any) => {
                     const dish = item.dishes;
                     const { avg, count } = getAvgRating(dish?.id);
+                    const displayPrice = item.schedule_price || dish?.selling_price;
                     return (
                       <DishCard
                         key={dish?.id}
                         id={dish?.id}
                         name={dish?.name}
                         description={dish?.description}
-                        price={dish?.selling_price}
+                        price={displayPrice}
                         imageUrl={dish?.image_url}
                         stockQuantity={item.quantity_available || dish?.stock_quantity}
                         category={item.schedule_date}
                         avgRating={avg}
                         reviewCount={count}
                         dish_type={dish?.dish_type}
+                        scheduledMenuId={item.id}
                       />
                     );
                   })}

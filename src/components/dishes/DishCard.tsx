@@ -20,9 +20,10 @@ interface DishCardProps {
   avgRating: number;
   reviewCount: number;
   dish_type?: "veg" | "non-veg";
+  scheduledMenuId?: string;
 }
 
-const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, category, avgRating, reviewCount, dish_type }: DishCardProps) => {
+const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, category, avgRating, reviewCount, dish_type, scheduledMenuId }: DishCardProps) => {
   const { addItem } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, categ
       navigate("/auth");
       return;
     }
-    addItem({ dishId: id, name, price, imageUrl, maxStock: stockQuantity }, quantity);
+    addItem({ dishId: id, name, price, imageUrl, maxStock: stockQuantity, scheduledMenuId }, quantity);
     toast.success(`Added ${quantity} ${name} to cart`);
     setQuantity(1);
   };

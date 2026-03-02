@@ -156,6 +156,17 @@ const Schedule = () => {
 
   const submitRequest = async () => {
     if (!user) { navigate("/auth"); return; }
+    
+    // Check if there's already a pending request for this date
+    const existingRequest = specialRequests.find((r: any) => 
+      r.request_date === requestForm.date && r.status === 'pending'
+    );
+    
+    if (existingRequest) {
+      toast.error("Kitchen is busy for this day! Please contact the kitchen for more info.");
+      return;
+    }
+    
     const times = ["Morning", "Afternoon", "Evening", "Night"];
 
     const payload = {

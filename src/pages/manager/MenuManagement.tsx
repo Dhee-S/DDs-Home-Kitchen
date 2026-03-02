@@ -44,6 +44,7 @@ const MenuManagement = () => {
   const [scheduleCategory, setScheduleCategory] = useState<string>("");
   const [selectedDishId, setSelectedDishId] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(10);
+  const [schedulePrice, setSchedulePrice] = useState<number>(0);
 
   const { data: dishes = [] } = useQuery({
     queryKey: ["all-dishes"],
@@ -137,13 +138,17 @@ const MenuManagement = () => {
         ? format(new Date(), "yyyy-MM-dd")
         : selectedDate;
       
+      const selectedDish = dishes.find((d: any) => d.id === selectedDishId);
+      const customPrice = schedulePrice > 0 ? schedulePrice : selectedDish?.selling_price;
+      
       const payload = {
         dish_id: selectedDishId,
         schedule_date: scheduleDate,
         date: scheduleDate,
         quantity_available: quantity,
         quantity_remaining: quantity,
-        preorder_enabled: true
+        preorder_enabled: true,
+        schedule_price: customPrice
       };
       
       const { error } = await supabase.from("scheduled_menu").insert(payload);
@@ -156,6 +161,7 @@ const MenuManagement = () => {
       setScheduleType("today");
       setSelectedDishId("");
       setQuantity(10);
+      setSchedulePrice(0);
       setScheduleCategory("");
       toast.success(scheduleType === "today" ? "Added to Today's Special!" : "Added to Weekly Plan!");
     },
@@ -364,7 +370,7 @@ const MenuManagement = () => {
                 </div>
               </div>
 
-              {/* Step 5: Quantity */}
+              {/* Step 5: Quantity & Price */}
               {selectedDishId && (
                 <motion.div 
                   initial={{ opacity: 0 }}
@@ -391,6 +397,19 @@ const MenuManagement = () => {
                       +
                     </Button>
                   </div>
+
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Special Price (Optional)</Label>
+                  <Input 
+                    type="number" 
+                    value={schedulePrice || ''} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/^0+/, '');
+                      setSchedulePrice(val === '' ? 0 : Number(val));
+                    }} 
+                    placeholder={`Default: ₹${dishes.find((d: any) => d.id === selectedDishId)?.selling_price || 0}`}
+                    className="rounded-xl"
+                  />
+                  <p className="text-xs text-muted-foreground">Leave blank to use menu price</p>
                 </motion.div>
               )}
 
