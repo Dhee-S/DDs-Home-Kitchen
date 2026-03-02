@@ -7,10 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, Trash2, Loader2, ShoppingBag, ArrowLeft, ChefHat } from "lucide-react";
+import { Minus, Plus, Trash2, Loader2, ShoppingBag, ArrowLeft, ChefHat, Phone, CreditCard, CheckCircle, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+
+const PAYMENT_NUMBER = "7904935160";
 
 const Cart = () => {
   const { items, updateQuantity, removeItem, clearCart, totalAmount } = useCart();
@@ -19,6 +21,7 @@ const Cart = () => {
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
   const [orderCode, setOrderCode] = useState<string | null>(null);
+  const [showPaymentInfo, setShowPaymentInfo] = useState(false);
 
   const placeOrder = async () => {
     if (!user || items.length === 0) return;
@@ -31,6 +34,7 @@ const Cart = () => {
         scheduled_menu_id: item.scheduledMenuId || null
       }));
 
+      // @ts-ignore - Supabase RPC types incomplete
       const { data: orderData, error: orderError } = await supabase.rpc("place_order", {
         _user_id: user.id,
         _total_amount: totalAmount,
@@ -40,10 +44,11 @@ const Cart = () => {
 
       if (orderError) throw orderError;
 
-      const code = orderData.order_code;
+      const code = orderData?.order_code || orderData;
 
       setOrderCode(code);
       clearCart();
+      setShowPaymentInfo(true);
       toast.success("Order placed successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to place order");
@@ -59,7 +64,7 @@ const Cart = () => {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%] bg-green-500/10 blur-[120px] rounded-full animate-pulse" />
         </div>
 
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-md w-full relative z-10">
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-md w-full relative z-10 space-y-6">
           <Card className="glass-card border-0 shadow-2xl rounded-[3rem] text-center p-10">
             <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-8 animate-bounce">
               <span className="text-5xl">🎉</span>
@@ -79,11 +84,66 @@ const Cart = () => {
               <Button onClick={() => navigate("/orders")} className="h-14 rounded-2xl text-lg font-black shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
                 Track My Cravings
               </Button>
-              <Button variant="ghost" onClick={() => { setOrderCode(null); navigate("/"); }} className="h-12 rounded-xl text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" onClick={() => { setOrderCode(null); setShowPaymentInfo(false); navigate("/"); }} className="h-12 rounded-xl text-muted-foreground hover:text-foreground">
                 Back to Menu
               </Button>
             </div>
           </Card>
+
+          {/* Payment Info Notification */}
+          <AnimatePresence>
+            {showPaymentInfo && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              >
+                <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+                  <CardContent className="p-8">
+                    <div className="flex items-center justify-center gap-3 mb-6">
+                      <div className="h-12 w-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                        <Wallet className="h-6 w-6 text-white" />
+                      </div>
+                      <h2 className="text-2xl font-serif font-black">Complete Payment</h2>
+                    </div>
+                    
+                    <p className="text-center text-muted-foreground mb-6">Please pay ₹{totalAmount} via GPay or PhonePe to complete your order</p>
+                    
+                    <div className="bg-white rounded-[2rem] p-6 shadow-lg border border-blue-100 mb-6">
+                      <div className="flex items-center justify-center gap-4 mb-4">
+                        <div className="h-16 w-16 bg-green-500 rounded-2xl flex items-center justify-center shadow-md">
+                          <span className="text-3xl">📱</span>
+                        </div>
+                        <div className="h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-md">
+                          <Phone className="h-8 w-8 text-white" />
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground mb-1">Pay to this number</p>
+                        <p className="text-4xl font-mono font-black text-primary">{PAYMENT_NUMBER}</p>
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={() => {
+                        setShowPaymentInfo(false);
+                        toast.info("Payment confirmation sent! Manager will verify.");
+                      }}
+                      className="w-full h-14 rounded-2xl text-lg font-black shadow-lg bg-green-500 hover:bg-green-600 gap-2"
+                    >
+                      <CheckCircle className="h-5 w-5" />
+                      I've Made the Payment
+                    </Button>
+                    
+                    <p className="text-center text-xs text-muted-foreground mt-4">
+                      💡 After payment, our team will verify and confirm your order
+                    </p>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     );

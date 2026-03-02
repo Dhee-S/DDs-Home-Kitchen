@@ -1,13 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { Package, ShoppingBag, Sparkles } from "lucide-react";
+import { Package, ShoppingBag, Sparkles, Phone, CreditCard, CheckCircle, Clock, Wallet } from "lucide-react";
 import OrderManagement from "./manager/OrderManagement";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+
+const PAYMENT_NUMBER = "7904935160";
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -16,8 +22,17 @@ const statusColors: Record<string, string> = {
   completed: "bg-muted text-muted-foreground border-border",
 };
 
+const paymentColors: Record<string, string> = {
+  pending: "bg-orange-500/10 text-orange-600 border-orange-200",
+  paid: "bg-green-500/10 text-green-600 border-green-200",
+  failed: "bg-red-500/10 text-red-600 border-red-200",
+};
+
 const Orders = () => {
   const { user, role } = useAuth();
+  const queryClient = useQueryClient();
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["my-orders", user?.id],
@@ -31,6 +46,24 @@ const Orders = () => {
     },
     enabled: !!user,
   });
+
+  const updatePaymentMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      // @ts-ignore - payment_status column may not be in types
+      const { error } = await supabase.from("orders").update({ payment_status: status }).eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-orders", user?.id] });
+      toast.success("Payment status updated!");
+      setShowPaymentDialog(false);
+    },
+  });
+
+  const openPaymentDialog = (order: any) => {
+    setSelectedOrder(order);
+    setShowPaymentDialog(true);
+  };
 
   if (isLoading) {
     return (
@@ -92,7 +125,20 @@ const Orders = () => {
                       </div>
                       <div className="text-right">
                         <span className="text-2xl font-black text-foreground">₹{Number(order.total_amount).toFixed(2)}</span>
-                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Amount Paid</p>
+                        <div className="flex items-center justify-end gap-2 mt-1">
+                          <Badge className={`rounded-xl px-3 py-0.5 text-[10px] font-black uppercase tracking-widest ${paymentColors[order.payment_status || 'pending'] || ""}`}>
+                            {order.payment_status === 'paid' ? 'Paid' : order.payment_status === 'failed' ? 'Failed' : 'Payment Pending'}
+                          </Badge>
+                        </div>
+                        {order.payment_status !== 'paid' && (
+                          <Button 
+                            size="sm" 
+                            className="mt-2 rounded-full h-8 bg-green-500 hover:bg-green-600 gap-1"
+                            onClick={() => openPaymentDialog(order)}
+                          >
+                            <Wallet className="h-3 w-3" /> Pay Now
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -117,6 +163,51 @@ const Orders = () => {
           )}
         </>
       )}
+      
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="rounded-[2rem] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-serif font-bold text-center">Complete Payment</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-4">
+              <div className="text-center p-4 bg-muted/50 rounded-2xl">
+                <p className="text-sm text-muted-foreground">Order Amount</p>
+                <p className="text-3xl font-black text-primary">₹{Number(selectedOrder.total_amount).toFixed(2)}</p>
+              </div>
+              
+              <div className="bg-white rounded-2xl p-4 shadow-lg border border-blue-100">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="h-10 w-10 bg-green-500 rounded-xl flex items-center justify-center">
+                    <span className="text-xl">📱</span>
+                  </div>
+                  <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                    <Phone className="h-5 w-5 text-white" />
+                  </div>
+                </div>
+                <p className="text-center text-sm text-muted-foreground mb-1">Pay to this number</p>
+                <p className="text-center text-2xl font-mono font-black text-primary">{PAYMENT_NUMBER}</p>
+              </div>
+
+              <Button 
+                onClick={() => updatePaymentMutation.mutate({ orderId: selectedOrder.id, status: 'paid' })}
+                className="w-full h-12 rounded-full bg-green-500 hover:bg-green-600 gap-2"
+              >
+                <CheckCircle className="h-5 w-5" /> I've Made the Payment
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => setShowPaymentDialog(false)}
+                className="w-full h-10 rounded-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

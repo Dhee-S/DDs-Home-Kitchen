@@ -7,14 +7,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, Package } from "lucide-react";
+import { CheckCircle2, Clock, Package, CreditCard, Wallet } from "lucide-react";
 
 const statuses = ["pending", "confirmed", "completed"];
+const paymentStatuses = ["pending", "paid", "failed"];
 
 const statusColors: Record<string, string> = {
   pending: "bg-orange-500/10 text-orange-600 border-orange-200",
   confirmed: "bg-blue-500/10 text-blue-600 border-blue-200",
   completed: "bg-green-500/10 text-green-600 border-green-200",
+};
+
+const paymentColors: Record<string, string> = {
+  pending: "bg-orange-500/10 text-orange-600 border-orange-200",
+  paid: "bg-green-500/10 text-green-600 border-green-200",
+  failed: "bg-red-500/10 text-red-600 border-red-200",
 };
 
 const OrderManagement = () => {
@@ -58,6 +65,27 @@ const OrderManagement = () => {
     },
   });
 
+  const updatePaymentStatus = useMutation({
+    mutationFn: async ({ id, paymentStatus, userEmail }: { id: string; paymentStatus: string; userEmail?: string }) => {
+      // @ts-ignore - payment_status column may not be in types
+      const { error } = await supabase.from("orders").update({ payment_status: paymentStatus }).eq("id", id);
+      if (error) throw error;
+
+      if (paymentStatus === 'paid' && userEmail) {
+        await supabase.from("notifications").insert({
+          title: "Payment Verified!",
+          message: `Your payment has been verified. Your order is being prepared!`,
+          type: "order",
+          reference_id: id
+        } as any);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-orders"] });
+      toast.success("Payment status updated");
+    },
+  });
+
   const pendingOrders = orders.filter((o: any) => o.status === "pending");
   const confirmedOrders = orders.filter((o: any) => o.status === "confirmed");
   const completedOrders = orders.filter((o: any) => o.status === "completed");
@@ -81,6 +109,28 @@ const OrderManagement = () => {
             </SelectContent>
           </Select>
         </div>
+        
+        {/* Payment Status */}
+        <div className="flex items-center gap-2 mb-3">
+          <CreditCard className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Payment:</span>
+          <Select 
+            value={order.payment_status || 'pending'} 
+            onValueChange={(v) => updatePaymentStatus.mutate({ id: order.id, paymentStatus: v, userEmail: order.profiles?.email })}
+          >
+            <SelectTrigger className={`w-24 h-7 text-xs ${paymentColors[order.payment_status || 'pending']}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {paymentStatuses.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s === 'paid' ? '✓ Paid' : s === 'pending' ? '⏳ Pending' : '✗ Failed'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
         <div className="text-sm mb-2">
           <span className="font-medium">{order.profiles?.name || "Customer"}</span>
           {order.profiles?.phone && <span className="text-muted-foreground ml-2">{order.profiles.phone}</span>}
