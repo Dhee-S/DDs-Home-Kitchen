@@ -13,11 +13,11 @@ import { Button } from "@/components/ui/button";
 const Index = () => {
   const { role } = useAuth();
   const queryClient = useQueryClient();
-  
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-  
+
   const [filter, setFilter] = useState<{
     type: "all" | "veg" | "non-veg";
     stock: "all" | "in-stock" | "out-of-stock";
@@ -142,8 +142,8 @@ const Index = () => {
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
               className="mb-6"
             >
-              <Badge 
-                variant="outline" 
+              <Badge
+                variant="outline"
                 className="mb-2 px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 via-red-500 to-orange-500 text-white border-0 font-black uppercase tracking-widest text-xs shadow-lg shadow-orange-500/30 animate-pulse"
               >
                 <span className="mr-2">👨‍🍳</span>
@@ -160,17 +160,17 @@ const Index = () => {
                 transition={{ delay: 0.5 }}
               >
                 Premium homemade meals crafted with love and fresh ingredients by{' '}
-                <motion.span 
+                <motion.span
                   className="text-primary font-black"
                   whileHover={{ scale: 1.05 }}
                   transition={{ type: "spring", stiffness: 400 }}
                 >
-                  Master Cook Ponnukodi S
+                  Cook Ponnukodi S
                 </motion.span>
                 .{' '}
               </motion.span>
               <span className="hidden sm:inline">Experience authentic taste delivered to your doorstep!</span>
-              <motion.span 
+              <motion.span
                 className="sm:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -239,12 +239,12 @@ const Index = () => {
                   ))}
                 </div>
               ) : todaysSpecialDishes.length === 0 ? (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-12 glass-card rounded-[2rem] border-2 border-dashed border-orange-200/40 bg-orange-50/30 dark:bg-orange-950/10"
                 >
-                  <motion.div 
+                  <motion.div
                     animate={{ rotate: [0, -5, 5, 0] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                     className="text-6xl mb-4"
@@ -284,7 +284,7 @@ const Index = () => {
 
             {/* Weekly Special Section - Only show if items exist */}
             {weeklySpecialDishes.length > 0 && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="mb-16"

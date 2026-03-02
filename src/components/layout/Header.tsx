@@ -5,11 +5,15 @@ import { useCart } from "@/lib/cart-context";
 import { useTheme } from "@/lib/theme-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Sun, Moon, User, LogOut, ChefHat, LayoutDashboard, Menu, X, Home, Calendar, Package } from "lucide-react";
+import { ShoppingCart, Sun, Moon, User, LogOut, ChefHat, LayoutDashboard, Menu, X, Home, Calendar, Package, Share2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import ProfileReminder from "./ProfileReminder";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+
+const WEBSITE_URL = "https://dhee-s.github.io/DDs-Home-Kitchen/";
+const WEBSITE_DESC = "DD's Home Kitchen - Fresh homemade meals by Master Cook Ponnukodi S. Authentic taste delivered to your doorstep!";
 
 const Header = () => {
   const { user, role, signOut } = useAuth();
@@ -18,10 +22,35 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname !== "/") return false;
     return location.pathname.startsWith(path);
+  };
+
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "DD's Home Kitchen",
+          text: WEBSITE_DESC,
+          url: WEBSITE_URL,
+        });
+      } else {
+        await navigator.clipboard.writeText(`${WEBSITE_DESC}\n\n${WEBSITE_URL}`);
+        toast.success("Link copied! Share with your friends 👆");
+      }
+    } catch (err) {
+      try {
+        await navigator.clipboard.writeText(`${WEBSITE_DESC}\n\n${WEBSITE_URL}`);
+        toast.success("Link copied! Share with your friends 👆");
+      } catch {
+        toast.error("Could not copy link");
+      }
+    }
+    setSharing(false);
   };
 
   const navItemClass = (path: string) => {
@@ -118,6 +147,17 @@ const Header = () => {
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleShare}
+            disabled={sharing}
+            className="rounded-xl hover:bg-muted/50 h-9 w-9 sm:h-10 sm:w-10"
+            title="Share with friends"
+          >
+            <Share2 className="h-4 w-4 sm:h-5 sm:w-5" />
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-xl hover:bg-muted/50 h-9 w-9 sm:h-10 sm:w-10">
             {theme === "light" ? <Moon className="h-4 w-4 sm:h-5 sm:w-5" /> : <Sun className="h-4 w-4 sm:h-5 sm:w-5" />}
           </Button>
