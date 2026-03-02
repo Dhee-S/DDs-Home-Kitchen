@@ -136,14 +136,48 @@ const Index = () => {
 
         <div className="container relative z-10 mx-auto px-4 text-center">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: "easeOut" }}>
-            <Badge variant="outline" className="mb-6 px-4 py-1.5 rounded-full bg-primary/5 text-primary border-primary/20 font-black uppercase tracking-widest text-[10px]">
-              Master Cook: Ponnukodi S
-            </Badge>
-            <h1 className="text-5xl md:text-7xl font-serif font-black tracking-tighter mb-6 leading-[1.1]">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+              className="mb-6"
+            >
+              <Badge 
+                variant="outline" 
+                className="mb-2 px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 via-red-500 to-orange-500 text-white border-0 font-black uppercase tracking-widest text-xs shadow-lg shadow-orange-500/30 animate-pulse"
+              >
+                <span className="mr-2">👨‍🍳</span>
+                Master Cook: <span className="text-orange-100 ml-1">Ponnukodi S</span>
+              </Badge>
+            </motion.div>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-serif font-black tracking-tighter mb-6 leading-[1.1]">
               Fresh from Our <span className="text-primary italic">Kitchen</span> <br /> to Your Table
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
-              Premium homemade meals crafted with love and fresh ingredients by Master Cook Ponnukodi S. <br className="hidden md:block" /> Experience authentic taste delivered to your doorstep!
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 font-medium leading-relaxed">
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                Premium homemade meals crafted with love and fresh ingredients by{' '}
+                <motion.span 
+                  className="text-primary font-black"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 400 }}
+                >
+                  Master Cook Ponnukodi S
+                </motion.span>
+                .{' '}
+              </motion.span>
+              <span className="hidden sm:inline">Experience authentic taste delivered to your doorstep!</span>
+              <motion.span 
+                className="sm:hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.7 }}
+              >
+                Experience authentic taste delivered to your doorstep!
+              </motion.span>
             </p>
           </motion.div>
 
@@ -152,16 +186,23 @@ const Index = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.8 }}
-            className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto mt-16"
+            className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-5xl mx-auto mt-12 sm:mt-16"
           >
             {features.map((f, i) => (
-              <div key={i} className="glass-card rounded-[2rem] p-6 text-center border-white/10 shadow-xl transition-all hover:shadow-2xl hover:shadow-primary/5 group">
-                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:bg-primary transition-all duration-300">
-                  <f.icon className="h-6 w-6 text-primary group-hover:text-white transition-colors" />
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 + i * 0.1 }}
+                whileHover={{ scale: 1.03, y: -5 }}
+                className="glass-card rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 text-center border-white/10 shadow-xl transition-all hover:shadow-2xl hover:shadow-primary/5 group"
+              >
+                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3 sm:mb-4 group-hover:scale-110 group-hover:bg-primary transition-all duration-300">
+                  <f.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-black text-sm uppercase tracking-wider mb-1">{f.title}</h3>
-                <p className="text-xs text-muted-foreground font-medium">{f.desc}</p>
-              </div>
+                <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider mb-1">{f.title}</h3>
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">{f.desc}</p>
+              </motion.div>
             ))}
           </motion.div>
         </div>
