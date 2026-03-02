@@ -239,11 +239,24 @@ const Index = () => {
                   ))}
                 </div>
               ) : todaysSpecialDishes.length === 0 ? (
-                <div className="text-center py-12 glass-card rounded-[2rem] border-2 border-dashed border-border/40">
-                  <div className="text-5xl mb-4 opacity-30">👨‍🍳</div>
-                  <h3 className="text-xl font-semibold text-muted-foreground">No dishes scheduled for today</h3>
-                  <p className="text-muted-foreground/70 mt-1">Check the full menu or schedule page for options</p>
-                </div>
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center py-12 glass-card rounded-[2rem] border-2 border-dashed border-orange-200/40 bg-orange-50/30 dark:bg-orange-950/10"
+                >
+                  <motion.div 
+                    animate={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="text-6xl mb-4"
+                  >
+                    👨‍🍳
+                  </motion.div>
+                  <h3 className="text-xl font-bold text-orange-600 dark:text-orange-400">Chef is Preparing Something Special!</h3>
+                  <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                    Our master cook Ponnukodi S is busy in the kitchen. <br className="hidden sm:block" />
+                    Check back soon or browse our full menu below!
+                  </p>
+                </motion.div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {todaysSpecialDishes.map((item: any) => {
@@ -269,20 +282,24 @@ const Index = () => {
               )}
             </div>
 
-            {/* Weekly Special Section */}
+            {/* Weekly Special Section - Only show if items exist */}
             {weeklySpecialDishes.length > 0 && (
-              <div className="mb-16">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mb-16"
+              >
                 <div className="flex items-center gap-3 mb-8">
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg animate-pulse">
                     <CalendarRange className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-serif font-bold">This Week's Menu</h2>
-                    <p className="text-muted-foreground">Upcoming dishes for the week</p>
+                    <h2 className="text-2xl sm:text-3xl font-serif font-bold">This Week's Menu</h2>
+                    <p className="text-muted-foreground">Upcoming dishes planned for this week</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   {weeklySpecialDishes.slice(0, 8).map((item: any) => {
                     const dish = item.dishes;
                     const { avg, count } = getAvgRating(dish?.id);
@@ -303,7 +320,7 @@ const Index = () => {
                     );
                   })}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* Full Menu Section */}
