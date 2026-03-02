@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Plus, Trash2, Loader2, CalendarDays, Edit2, Users, CheckCircle2, XCircle, Clock, Package, Filter, Minus, Plus as PlusIcon } from "lucide-react";
@@ -25,6 +26,11 @@ const ScheduleManagement = () => {
   const [editingRequest, setEditingRequest] = useState<any>(null);
   const [form, setForm] = useState({ dish_id: "", schedule_date: "", quantity_available: 10, preorder_enabled: true, category: "" });
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [requestForm, setRequestForm] = useState({ dish_name: "", quantity: 1, request_time: "Evening", occasion: "", notes: "" });
+  
+  // Custom delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'schedule' | 'request'; name: string } | null>(null);
 
   const { data: dishes = [] } = useQuery({
     queryKey: ["all-dishes"],
@@ -83,7 +89,7 @@ const ScheduleManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-scheduled"] });
       setIsAddOpen(false);
-      setForm({ dish_id: "", schedule_date: "", quantity_available: 10, preorder_enabled: true });
+      setForm({ dish_id: "", schedule_date: "", quantity_available: 10, preorder_enabled: true, category: "" });
       toast.success("Dish scheduled successfully!");
     },
     onError: (err: any) => toast.error(err.message),
@@ -112,15 +118,34 @@ const ScheduleManagement = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
-      if (error) throw error;
+    mutationFn: async ({ id, type }: { id: string, type: 'schedule' | 'request' }) => {
+      if (type === 'schedule') {
+        const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("special_requests" as any).delete().eq("id", id);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-scheduled"] });
-      toast.success("Item removed from schedule");
+      queryClient.invalidateQueries({ queryKey: ["all-special-requests"] });
+      toast.success("Item removed successfully");
     },
   });
+
+  const handleDeleteClick = (id: string, type: 'schedule' | 'request', name: string) => {
+    setDeleteTarget({ id, type, name });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate({ id: deleteTarget.id, type: deleteTarget.type });
+    }
+    setDeleteConfirmOpen(false);
+    setDeleteTarget(null);
+  };
 
   const updateRequestStatus = useMutation({
     mutationFn: async ({ id, status, quantity, dishName }: { id: string, status: string, quantity?: number, dishName?: string }) => {
@@ -375,7 +400,7 @@ const ScheduleManagement = () => {
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-full" onClick={() => { setEditingItem(item); setIsEditOpen(true); }}>
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => deleteMutation.mutate(item.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full" onClick={() => handleDeleteClick(item.id, 'schedule', item.dishes?.name || 'this item')}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -415,7 +440,7 @@ const ScheduleManagement = () => {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { if (confirm("Delete?")) supabase.from("special_requests" as any).delete().eq("id", req.id).then(() => queryClient.invalidateQueries({ queryKey: ["all-special-requests"] })); }}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -447,7 +472,7 @@ const ScheduleManagement = () => {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { if (confirm("Delete?")) supabase.from("special_requests" as any).delete().eq("id", req.id).then(() => queryClient.invalidateQueries({ queryKey: ["all-special-requests"] })); }}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -476,7 +501,7 @@ const ScheduleManagement = () => {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { if (confirm("Delete?")) supabase.from("special_requests" as any).delete().eq("id", req.id).then(() => queryClient.invalidateQueries({ queryKey: ["all-special-requests"] })); }}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -504,7 +529,7 @@ const ScheduleManagement = () => {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-sm">{req.dish_name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { if (confirm("Delete?")) supabase.from("special_requests" as any).delete().eq("id", req.id).then(() => queryClient.invalidateQueries({ queryKey: ["all-special-requests"] })); }}>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteClick(req.id, 'request', req.dish_name)}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
@@ -623,6 +648,24 @@ const ScheduleManagement = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Custom Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="rounded-[2rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-serif font-bold">Confirm Delete</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              Are you sure you want to delete <strong>"{deleteTarget?.name}"</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel className="rounded-full h-11">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="rounded-full h-11 bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
