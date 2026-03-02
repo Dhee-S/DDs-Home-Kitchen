@@ -1,0 +1,314 @@
+================================================================================
+                    DD's HOME KITCHEN - PROJECT RECORDING LOG
+================================================================================
+
+PROJECT TITLE: DD's Home Kitchen
+PROJECT TYPE: Food Ordering Web Application (SPA)
+DEPLOYED URL: https://dhee-s.github.io/DDs-Home-Kitchen/
+
+================================================================================
+                              PROJECT ORIGIN
+================================================================================
+
+ORIGINAL PROMPT:
+Build a food ordering website for a home kitchen business featuring Master 
+Cook Ponnukodi S, with menu display, ordering system, and admin management.
+
+INITIAL BUILD:
+- The core idea was initially generated using Lovable AI platform
+- Lovable provided the basic UI/UX framework with fundamental functions
+- The project was then moved to GitHub and downloaded locally for 
+  customization and enhancement
+
+AI ASSISTED DEVELOPMENT:
+- Primary AI execution: OpenCode AI with MiniMax M2.5 model
+- Planning assistance: Google Gemini 3.1 Pro
+- Additional execution: Claude Sonnet 4.6 for complex implementations
+- All AI models used in combination to plan, execute, debug, and refine
+
+DATABASE & AUTH:
+- Supabase used for backend database and authentication
+- Custom database schema designed for food ordering system
+- User roles: MANAGER, CUSTOMER
+
+BUILD TOOLS:
+- npm for package management
+- Vite for development and production builds
+- TypeScript for type safety
+- Tailwind CSS for styling
+- Framer Motion for animations
+
+================================================================================
+                            TECH STACK
+================================================================================
+
+FRONTEND:
+- React 18+ (TypeScript)
+- Vite (Build tool)
+- Tailwind CSS (Styling)
+- Framer Motion (Animations)
+- React Router DOM (Routing - HashRouter for GitHub Pages)
+- TanStack Query (Data fetching & caching)
+- Shadcn UI (Component library)
+- Lucide React (Icons)
+
+BACKEND:
+- Supabase (Database & Auth)
+- PostgreSQL (Database)
+- Row Level Security (RLS)
+
+INFRASTRUCTURE:
+- GitHub Pages (Hosting)
+- Git (Version control)
+- npm (Package management)
+
+================================================================================
+                          FILE STRUCTURE
+================================================================================
+
+home-kitchen-hub/
+├── public/                          # Static assets
+│   ├── logo.jpg                     # Site logo/favicon
+│   ├── placeholder.svg               # Placeholder images
+│   ├── robots.txt                   # SEO robots file
+│   └── import_dishes/               # Dish images
+│
+├── src/
+│   ├── components/
+│   │   ├── ui/                      # Shadcn UI components (80+ files)
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── dialog.tsx
+│   │   │   ├── dropdown-menu.tsx
+│   │   │   ├── alert-dialog.tsx
+│   │   │   ├── sheet.tsx
+│   │   │   └── ... (many more)
+│   │   │
+│   │   ├── layout/
+│   │   │   ├── Header.tsx           # Main navigation header
+│   │   │   ├── Footer.tsx           # Site footer
+│   │   │   ├── ProfileReminder.tsx  # Profile completion reminder
+│   │   │   └── ChatWidget.tsx       # Customer chat widget
+│   │   │
+│   │   ├── dishes/
+│   │   │   └── DishCard.tsx         # Reusable dish display card
+│   │   │
+│   │   └── NavLink.tsx              # Custom navigation link
+│   │
+│   ├── pages/
+│   │   ├── Index.tsx                # Home page (Menu display)
+│   │   ├── Auth.tsx                 # Login/Signup page
+│   │   ├── Cart.tsx                 # Shopping cart
+│   │   ├── Orders.tsx               # Order history
+│   │   ├── Schedule.tsx             # Pre-order schedule page
+│   │   ├── Profile.tsx              # User profile page
+│   │   ├── NotFound.tsx             # 404 page
+│   │   │
+│   │   └── manager/
+│   │       ├── ManagerDashboard.tsx  # Manager dashboard
+│   │       ├── MenuManagement.tsx    # Add/Edit/Hide dishes
+│   │       ├── ScheduleManagement.tsx # Schedule today's/weekly specials
+│   │       ├── OrderManagement.tsx   # Manage customer orders
+│   │       ├── NotificationsPanel.tsx # View notifications
+│   │       └── ChatManagement.tsx    # Manage customer chats
+│   │
+│   ├── lib/
+│   │   ├── auth-context.tsx         # Authentication context
+│   │   ├── cart-context.tsx         # Shopping cart context
+│   │   ├── theme-context.tsx        # Light/Dark theme
+│   │   └── utils.ts                 # Utility functions
+│   │
+│   ├── integrations/
+│   │   └── supabase/
+│   │       ├── client.ts             # Supabase client config
+│   │       └── types.ts              # TypeScript types
+│   │
+│   ├── hooks/
+│   │   ├── use-toast.ts              # Toast notifications
+│   │   └── use-mobile.tsx           # Mobile detection
+│   │
+│   ├── App.tsx                      # Main app component
+│   ├── main.tsx                     # Entry point
+│   ├── App.css                      # Global styles
+│   ├── index.css                    # Tailwind imports
+│   └── vite-env.d.ts                # Vite environment types
+│
+├── supabase/                        # Supabase configuration
+│   ├── migrations/                   # Database migrations
+│   └── .temp/                       # Supabase temp files
+│
+├── scripts/
+│   └── import-images.mjs            # Image import script
+│
+├── sql-editor.txt                   # SQL commands for Supabase
+├── supabase-setup.sql               # Initial Supabase setup
+├── supabase-add-category.sql        # Category addition
+│
+├── package.json                     # Dependencies
+├── vite.config.ts                   # Vite configuration
+├── tsconfig.json                    # TypeScript config
+├── tailwind.config.ts               # Tailwind config
+├── postcss.config.js                # PostCSS config
+├── eslint.config.js                 # ESLint config
+├── index.html                       # HTML entry
+├── README.md                        # Project readme
+│
+└── dist/                           # Production build output
+    ├── index.html
+    ├── assets/
+    └── logo.jpg
+
+================================================================================
+                          KEY FEATURES IMPLEMENTED
+================================================================================
+
+CUSTOMER FEATURES:
+- Browse menu by categories (Today's Special, Weekly, Full Menu)
+- Filter dishes (Veg/Non-Veg, In Stock, Scheduled)
+- Add to cart with quantity management
+- Place orders with notes
+- Payment status tracking
+- Order history with status
+- User profile management
+- Share site with friends
+- Dark/Light theme toggle
+
+MANAGER FEATURES:
+- Add/Edit/Delete dishes
+- Upload dish images
+- Hide/Show dishes in menu
+- Schedule Today's Special and Weekly items
+- Category management
+- Order management (Pending, Confirmed, Completed)
+- Payment verification (Pending/Paid/Failed)
+- Special request handling (Approve/Reject)
+- Custom delete confirmations
+
+SYSTEM FEATURES:
+- Real-time quantity tracking for scheduled items
+- Out of stock display
+- Scroll to top on page navigation
+- Responsive design (Mobile, Tablet, Desktop)
+- HashRouter for GitHub Pages compatibility
+- Master Cook Ponnukodi S branding throughout
+
+================================================================================
+                        DATABASE SCHEMA (SUPABASE)
+================================================================================
+
+TABLES:
+- profiles (id, name, phone, address, dietary_preference, preferred_pickup_time)
+- dishes (id, name, description, selling_price, categories, dish_type, stock_quantity, image_url, is_available)
+- orders (id, user_id, order_code, total_amount, notes, status, payment_status, created_at)
+- order_items (id, order_id, dish_id, quantity, unit_price, scheduled_menu_id)
+- scheduled_menu (id, dish_id, schedule_date, quantity_available, quantity_remaining, preorder_enabled)
+- special_requests (id, user_id, dish_name, quantity, request_time, occasion, notes, status, request_date)
+- reviews (id, user_id, dish_id, rating, comment, created_at)
+- notifications (id, user_id, title, message, type, is_read, reference_id, created_at)
+
+FUNCTIONS:
+- place_order (RPC function for atomic order creation)
+- generate_order_code (Generates unique order codes)
+
+================================================================================
+                            FUTURE IMPLEMENTATIONS
+================================================================================
+
+MANAGER DASHBOARD ENHANCEMENTS:
+As the userbase grows and more data accumulates, the Manager Dashboard 
+should be enhanced to provide powerful business insights:
+
+1. SALES ANALYTICS:
+   - Daily/Weekly/Monthly revenue tracking
+   - Revenue comparison between periods
+   - Average order value calculation
+   - Peak ordering hours analysis
+
+2. POPULAR ITEMS ANALYSIS:
+   - Most ordered dishes ranking
+   - Category-wise sales distribution
+   - Price range analysis
+   - Trending dishes identification
+
+3. CUSTOMER INSIGHTS:
+   - Customer retention metrics
+   - New vs returning customers
+   - Customer lifetime value
+   - Most valuable customers
+
+4. RATING & REVIEWS:
+   - Average ratings per dish
+   - Rating distribution analysis
+   - Sentiment analysis on reviews
+   - Feedback response tracking
+
+5. LOCATION-BASED ANALYTICS:
+   - Geographic heatmap of orders
+   - Area-wise popular dishes
+   - Delivery zone optimization
+   - Locality-based demand patterns
+
+6. INVENTORY MANAGEMENT:
+   - Stock turnover rates
+   - Low-stock alerts
+   - Popular ingredient tracking
+   - Wastage analysis
+
+7. PREDICTIVE ANALYTICS:
+   - Demand forecasting
+   - Seasonal trends
+   - Popular time slots prediction
+   - Customer preference patterns
+
+8. BUSINESS REPORTS:
+   - Exportable reports (PDF/Excel)
+   - Automated daily/weekly summaries
+   - Profit margin calculations
+   - Growth metrics dashboards
+
+Implementation Technologies:
+- Supabase Analytics / PostgreSQL aggregations
+- Chart.js or Recharts for visualizations
+- Custom SQL queries for complex analytics
+- Real-time dashboards with Supabase subscriptions
+
+================================================================================
+                              DEVELOPMENT TEAM
+================================================================================
+
+CORE IDEA: Lovable AI Platform
+BASIC UI/UX: Lovable Generated Code
+AI EXECUTION: OpenCode (MiniMax M2.5), Google Gemini 3.1 Pro, Claude Sonnet 4.6
+DATABASE: Supabase (PostgreSQL)
+HOSTING: GitHub Pages
+
+================================================================================
+                              VERSION HISTORY
+================================================================================
+
+v1.0 - Initial deployment
+- Basic menu display
+- Cart and ordering
+- User authentication
+- Manager dashboard
+
+v1.1 - Enhanced Features
+- Today's Special & Weekly scheduling
+- Payment tracking
+- Delete confirmations
+- Dish visibility toggle
+- Image uploads
+- Share functionality
+
+v1.2 - UI/UX Improvements
+- Master Cook Ponnukodi S branding
+- Responsive mobile design
+- Animated UI components
+- Creative empty states
+
+================================================================================
+                           END OF RECORDING LOG
+================================================================================
+
+Last Updated: March 2026
+Project Status: Active & Continuously Enhanced
