@@ -28,7 +28,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .select("role")
       .eq("user_id", userId)
       .single();
-    if (data) setRole(data.role as UserRole);
+    
+    if (data) {
+      setRole(data.role as UserRole);
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      const metaRole = user?.user_metadata?.role?.toLowerCase();
+      if (metaRole === "manager" || metaRole === "customer") {
+        setRole(metaRole as UserRole);
+      }
+    }
   };
 
   useEffect(() => {
