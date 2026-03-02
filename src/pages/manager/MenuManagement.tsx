@@ -419,10 +419,10 @@ const MenuManagement = () => {
                 <div><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
                 <div><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
                 
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Selling Price (₹)</Label><Input type="number" value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} /></div>
-                  <div><Label>Stock Qty</Label><Input type="number" value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: Number(e.target.value) })} /></div>
-                </div>
+                <div><Label>Selling Price (₹)</Label><Input type="number" value={form.selling_price || ''} onChange={(e) => {
+                  const val = e.target.value.replace(/^0+/, '');
+                  setForm({ ...form, selling_price: val === '' ? 0 : Number(val) });
+                }} placeholder="0" /></div>
 
                 <div><Label>Type</Label>
                   <div className="flex gap-2 mt-1">

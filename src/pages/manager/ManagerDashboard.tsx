@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard,
@@ -12,7 +13,12 @@ import {
   DollarSign,
   BarChart3,
   CalendarDays,
-  Utensils
+  Utensils,
+  UserPlus,
+  Crown,
+  Loader2,
+  Check,
+  X
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,10 +26,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const ManagerDashboard = () => {
   const { role, loading, user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [addManagerOpen, setAddManagerOpen] = useState(false);
+  const [managerEmail, setManagerEmail] = useState("");
 
   const { data: stats } = useQuery({
     queryKey: ["manager-stats"],
@@ -38,6 +50,46 @@ const ManagerDashboard = () => {
 
       return { revenue, dishCount, userCount, requestCount, completedOrders };
     }
+  });
+
+  const { data: managers = [] } = useQuery({
+    queryKey: ["all-managers"],
+    queryFn: async () => {
+      const { data } = await supabase.from("user_roles").select("*, profiles!inner(email, name)").eq("role", "manager");
+      return data || [];
+    }
+  });
+
+  const addManagerMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { data: profile } = await supabase.from("profiles").select("id").ilike("email", `%${email}%`).single();
+      if (!profile) throw new Error("User not found with this email");
+      
+      const { error } = await supabase.from("user_roles").insert({
+        user_id: profile.id,
+        role: "manager"
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-managers"] });
+      setManagerEmail("");
+      setAddManagerOpen(false);
+      toast.success("New manager added successfully!");
+    },
+    onError: (err: any) => toast.error(err.message)
+  });
+
+  const removeManagerMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "manager");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-managers"] });
+      toast.success("Manager removed");
+    },
+    onError: (err: any) => toast.error(err.message)
   });
 
   if (loading) return null;
@@ -162,6 +214,93 @@ const ManagerDashboard = () => {
                     <LayoutDashboard className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                   </Button>
                 ))}
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Manager Team Section */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2">
+            <Card className="border-0 shadow-2xl glass-card rounded-[3rem] p-8 border border-white/10">
+              <CardHeader className="p-0 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 bg-yellow-500/10 rounded-2xl flex items-center justify-center">
+                      <Crown className="h-6 w-6 text-yellow-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl font-serif font-bold">Kitchen Team</CardTitle>
+                      <p className="text-sm text-muted-foreground">Manage manager access</p>
+                    </div>
+                  </div>
+                  <Dialog open={addManagerOpen} onOpenChange={setAddManagerOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="rounded-full gap-1 bg-yellow-500 hover:bg-yellow-600">
+                        <UserPlus className="h-4 w-4" /> Add Manager
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-[2rem]">
+                      <DialogHeader>
+                        <DialogTitle className="font-serif font-bold">Add New Manager</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label>User Email</Label>
+                          <Input 
+                            type="email" 
+                            value={managerEmail}
+                            onChange={(e) => setManagerEmail(e.target.value)}
+                            placeholder="Enter user's email address"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">The user must have an account to be added as manager</p>
+                        </div>
+                        <Button 
+                          onClick={() => addManagerMutation.mutate(managerEmail)}
+                          disabled={addManagerMutation.isPending || !managerEmail}
+                          className="w-full rounded-full"
+                        >
+                          {addManagerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Add as Manager
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <div className="space-y-3">
+                {managers.map((mgr: any) => (
+                  <div key={mgr.user_id} className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 border border-border/30">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">
+                          {(mgr.profiles?.name || mgr.profiles?.email || 'M')[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium">{mgr.profiles?.name || 'Manager'}</p>
+                        <p className="text-xs text-muted-foreground">{mgr.profiles?.email}</p>
+                      </div>
+                    </div>
+                    {mgr.user_id !== user?.id && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeManagerMutation.mutate(mgr.user_id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {mgr.user_id === user?.id && (
+                      <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">You</Badge>
+                    )}
+                  </div>
+                ))}
+                {managers.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Crown className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p>No managers added yet</p>
+                  </div>
+                )}
               </div>
             </Card>
           </motion.div>

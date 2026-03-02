@@ -80,12 +80,14 @@ const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, categ
             </Badge>
           </div>
 
-          {/* Stock Badge */}
-          <div className="absolute top-3 right-3 z-20">
-            <Badge variant={outOfStock ? "destructive" : "secondary"} className="bg-background/90 text-foreground backdrop-blur-md shadow-sm border-0 px-3 py-1 text-[10px] rounded-lg font-bold">
-              {outOfStock ? "Sold Out" : `${stockQuantity} Left`}
-            </Badge>
-          </div>
+          {/* Stock Badge - Only show for scheduled items with quantity */}
+          {stockQuantity !== undefined && stockQuantity > 0 && (
+            <div className="absolute top-3 right-3 z-20">
+              <Badge variant={outOfStock ? "destructive" : "secondary"} className="bg-background/90 text-foreground backdrop-blur-md shadow-sm border-0 px-3 py-1 text-[10px] rounded-lg font-bold">
+                {outOfStock ? "Sold Out" : `${stockQuantity} Left`}
+              </Badge>
+            </div>
+          )}
 
           {/* Out of stock overlay */}
           <AnimatePresence>
