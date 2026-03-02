@@ -96,8 +96,9 @@ const ScheduleManagement = () => {
 
   const addMutation = useMutation({
     mutationFn: async () => {
+      const { category, ...rest } = form;
       const payload = {
-        ...form,
+        ...rest,
         date: form.schedule_date,
         quantity_remaining: form.quantity_available
       };
