@@ -32,23 +32,11 @@ const Header = () => {
   const handleShare = async () => {
     setSharing(true);
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "DD's Home Kitchen",
-          text: WEBSITE_DESC,
-          url: WEBSITE_URL,
-        });
-      } else {
-        await navigator.clipboard.writeText(`${WEBSITE_DESC}\n\n${WEBSITE_URL}`);
-        toast.success("Link copied! Share with your friends 👆");
-      }
-    } catch (err) {
-      try {
-        await navigator.clipboard.writeText(`${WEBSITE_DESC}\n\n${WEBSITE_URL}`);
-        toast.success("Link copied! Share with your friends 👆");
-      } catch {
-        toast.error("Could not copy link");
-      }
+      const shareText = `🍽️ DD's Home Kitchen - Fresh homemade meals by Master Cook Ponnukodi S! Authentic taste delivered to your doorstep. Order now: ${WEBSITE_URL}`;
+      await navigator.clipboard.writeText(shareText);
+      toast.success("Link copied! Share with your friends 👆");
+    } catch {
+      toast.error("Could not copy link");
     }
     setSharing(false);
   };
