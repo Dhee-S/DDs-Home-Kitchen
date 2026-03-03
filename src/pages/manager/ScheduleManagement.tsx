@@ -155,8 +155,21 @@ const ScheduleManagement = () => {
   const deleteMutation = useMutation({
     mutationFn: async ({ id, type }: { id: string, type: 'schedule' | 'request' }) => {
       if (type === 'schedule') {
-        const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
-        if (error) throw error;
+        // Check for order items referencing this schedule
+        const { data: orderItems } = await supabase
+          .from("order_items")
+          .select("id")
+          .eq("scheduled_menu_id", id)
+          .limit(1);
+        
+        if (orderItems && orderItems.length > 0) {
+          // Just disable preorder instead of deleting
+          const { error } = await supabase.from("scheduled_menu").update({ preorder_enabled: false, quantity_available: 0 }).eq("id", id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
+          if (error) throw error;
+        }
       } else {
         const { error } = await supabase.from("special_requests" as any).delete().eq("id", id);
         if (error) throw error;

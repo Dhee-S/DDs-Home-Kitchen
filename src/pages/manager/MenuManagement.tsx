@@ -88,20 +88,25 @@ const MenuManagement = () => {
     
     setUploading(true);
     try {
+      // First try: Supabase storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `dishes/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('dish-images')
-        .upload(filePath, file);
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
       
       if (uploadError) {
-        // Try base64 fallback
+        console.warn("Storage upload failed, using base64:", uploadError);
+        // Fallback to base64
         const reader = new FileReader();
         reader.onloadend = () => {
           setForm({ ...form, image_url: reader.result as string });
-          toast.success("Image loaded!");
+          toast.success("Image loaded (local)!");
+        };
+        reader.onerror = () => {
+          toast.error("Failed to load image");
         };
         reader.readAsDataURL(file);
         setUploading(false);
@@ -115,11 +120,15 @@ const MenuManagement = () => {
       setForm({ ...form, image_url: publicUrl });
       toast.success("Image uploaded!");
     } catch (err) {
-      // Fallback to base64
+      console.error("Upload error:", err);
+      // Fallback to base64 on any error
       const reader = new FileReader();
       reader.onloadend = () => {
         setForm({ ...form, image_url: reader.result as string });
         toast.success("Image loaded (local)!");
+      };
+      reader.onerror = () => {
+        toast.error("Failed to load image");
       };
       reader.readAsDataURL(file);
     }
@@ -185,33 +194,73 @@ const MenuManagement = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      console.log("Deleting dish with id:", id);
-      const { error } = await supabase.from("dishes").delete().eq("id", id);
-      if (error) {
-        console.error("Delete error:", error);
-        throw error;
+      // First check if dish has any order items
+      const { data: orderItems } = await supabase
+        .from("order_items")
+        .select("id")
+        .eq("dish_id", id)
+        .limit(1);
+      
+      if (orderItems && orderItems.length > 0) {
+        // Dish has orders - just hide it instead of deleting
+        const { error } = await supabase.from("dishes").update({ is_available: false }).eq("id", id);
+        if (error) throw error;
+        return { hidden: true };
       }
+      
+      // No orders - safe to delete
+      const { error } = await supabase.from("dishes").delete().eq("id", id);
+      if (error) throw error;
+      return { hidden: false };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["all-dishes"] });
-      toast.success("Dish deleted successfully");
+      if (data?.hidden) {
+        toast.success("Dish has existing orders - it's now hidden from menu");
+      } else {
+        toast.success("Dish deleted successfully");
+      }
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
     },
     onError: (err: any) => {
       console.error("Delete error:", err);
-      toast.error(err.message || "Failed to delete dish. Please check if you have permission.");
+      if (err.message?.includes("foreign key")) {
+        toast.error("Cannot delete dish with existing orders. It has been hidden instead.");
+      } else {
+        toast.error(err.message || "Failed to delete dish");
+      }
     },
   });
 
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Check if there are any order items referencing this scheduled menu
+      const { data: orderItems } = await supabase
+        .from("order_items")
+        .select("id")
+        .eq("scheduled_menu_id", id)
+        .limit(1);
+      
+      if (orderItems && orderItems.length > 0) {
+        // Just hide preorder instead of deleting
+        const { error } = await supabase.from("scheduled_menu").update({ preorder_enabled: false, quantity_available: 0 }).eq("id", id);
+        if (error) throw error;
+        return { hidden: true };
+      }
+      
+      // Safe to delete
       const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
       if (error) throw error;
+      return { hidden: false };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["scheduled-menu"] });
-      toast.success("Schedule removed");
+      if (data?.hidden) {
+        toast.success("Schedule has orders - pre-order disabled");
+      } else {
+        toast.success("Schedule removed");
+      }
     },
   });
 

@@ -6,6 +6,14 @@ ADD COLUMN IF NOT EXISTS schedule_price NUMERIC DEFAULT NULL;
 ALTER TABLE special_requests
 ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT NULL;
 
+-- Add category column to special_requests for user requests
+ALTER TABLE special_requests
+ADD COLUMN IF NOT EXISTS category TEXT[] DEFAULT '{}';
+
+-- Add dish_type column to special_requests
+ALTER TABLE special_requests
+ADD COLUMN IF NOT EXISTS dish_type TEXT DEFAULT 'veg';
+
 -- Verify the columns
 SELECT table_name, column_name, data_type 
 FROM information_schema.columns 
