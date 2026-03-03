@@ -24,23 +24,31 @@ const ScheduleManagement = () => {
   const today = new Date().toISOString().split('T')[0];
   const nextWeek = addDays(new Date(), 7).toISOString().split('T')[0];
 
-  const { data: dishes = [] } = useQuery({
+  const { data: dishes = [], isLoading: dishesLoading } = useQuery({
     queryKey: ["all-dishes"],
     queryFn: async () => {
-      const { data } = await supabase.from("dishes").select("id, name, selling_price, image_url, dish_type").order("name");
+      const { data, error } = await supabase.from("dishes").select("id, name, selling_price, image_url, dish_type").order("name");
+      if (error) {
+        console.error("Dishes fetch error:", error);
+        return [];
+      }
       return data || [];
     },
   });
 
-  const { data: scheduled = [], isLoading } = useQuery({
+  const { data: scheduled = [], isLoading: scheduledLoading } = useQuery({
     queryKey: ["all-scheduled", today],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("scheduled_menu")
         .select("*, dishes(name, image_url, selling_price, dish_type)")
         .gte("schedule_date", today)
         .lte("schedule_date", nextWeek)
         .order("schedule_date");
+      if (error) {
+        console.error("Scheduled fetch error:", error);
+        return [];
+      }
       return data || [];
     },
   });
@@ -57,6 +65,7 @@ const ScheduleManagement = () => {
 
   const addMutation = useMutation({
     mutationFn: async () => {
+      console.log("Scheduling dish:", form);
       const { error } = await supabase.from("scheduled_menu").insert({
         dish_id: form.dish_id,
         schedule_date: form.schedule_date,
@@ -65,7 +74,10 @@ const ScheduleManagement = () => {
         preorder_enabled: form.preorder_enabled,
         schedule_price: form.schedule_price || null,
       });
-      if (error) throw error;
+      if (error) {
+        console.error("Schedule insert error:", error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-scheduled"] });
@@ -73,7 +85,10 @@ const ScheduleManagement = () => {
       setForm({ dish_id: "", schedule_date: format(new Date(), "yyyy-MM-dd"), quantity_available: 10, preorder_enabled: true, schedule_price: 0 });
       toast.success("Dish scheduled!");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      console.error("Add mutation error:", err);
+      toast.error(err.message || "Failed to schedule dish");
+    },
   });
 
   const deleteMutation = useMutation({
