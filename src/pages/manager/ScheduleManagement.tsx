@@ -155,30 +155,32 @@ const ScheduleManagement = () => {
   const deleteMutation = useMutation({
     mutationFn: async ({ id, type }: { id: string, type: 'schedule' | 'request' }) => {
       if (type === 'schedule') {
-        // Check for order items referencing this schedule
-        const { data: orderItems } = await supabase
-          .from("order_items")
-          .select("id")
-          .eq("scheduled_menu_id", id)
-          .limit(1);
+        // Try to delete first
+        const { error: deleteError } = await supabase.from("scheduled_menu").delete().eq("id", id);
         
-        if (orderItems && orderItems.length > 0) {
-          // Just disable preorder instead of deleting
-          const { error } = await supabase.from("scheduled_menu").update({ preorder_enabled: false, quantity_available: 0 }).eq("id", id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
-          if (error) throw error;
+        if (deleteError) {
+          if (deleteError.message?.includes("foreign key") || deleteError.code === "23503") {
+            // Has orders - disable preorder instead
+            const { error } = await supabase.from("scheduled_menu").update({ preorder_enabled: false, quantity_available: 0 }).eq("id", id);
+            if (error) throw error;
+            return { hidden: true };
+          }
+          throw deleteError;
         }
+        return { hidden: false };
       } else {
         const { error } = await supabase.from("special_requests" as any).delete().eq("id", id);
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["all-scheduled"] });
       queryClient.invalidateQueries({ queryKey: ["all-special-requests"] });
-      toast.success("Item removed successfully");
+      if (data?.hidden) {
+        toast.success("Schedule has orders - pre-order disabled");
+      } else {
+        toast.success("Item removed successfully");
+      }
     },
   });
 

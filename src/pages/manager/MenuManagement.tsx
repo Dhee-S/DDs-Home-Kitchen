@@ -194,23 +194,18 @@ const MenuManagement = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // First check if dish has any order items
-      const { data: orderItems } = await supabase
-        .from("order_items")
-        .select("id")
-        .eq("dish_id", id)
-        .limit(1);
+      // Try to delete first - if foreign key error, hide instead
+      const { error: deleteError } = await supabase.from("dishes").delete().eq("id", id);
       
-      if (orderItems && orderItems.length > 0) {
-        // Dish has orders - just hide it instead of deleting
-        const { error } = await supabase.from("dishes").update({ is_available: false }).eq("id", id);
-        if (error) throw error;
-        return { hidden: true };
+      if (deleteError) {
+        if (deleteError.message?.includes("foreign key") || deleteError.code === "23503") {
+          // Dish has orders - hide it instead
+          const { error: updateError } = await supabase.from("dishes").update({ is_available: false }).eq("id", id);
+          if (updateError) throw updateError;
+          return { hidden: true };
+        }
+        throw deleteError;
       }
-      
-      // No orders - safe to delete
-      const { error } = await supabase.from("dishes").delete().eq("id", id);
-      if (error) throw error;
       return { hidden: false };
     },
     onSuccess: (data) => {
@@ -225,8 +220,14 @@ const MenuManagement = () => {
     },
     onError: (err: any) => {
       console.error("Delete error:", err);
-      if (err.message?.includes("foreign key")) {
-        toast.error("Cannot delete dish with existing orders. It has been hidden instead.");
+      if (err.message?.includes("foreign key") || err.code === "23503") {
+        // Force hide on any constraint error
+        if (deleteTarget) {
+          supabase.from("dishes").update({ is_available: false }).eq("id", deleteTarget.id).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["all-dishes"] });
+            toast.success("Dish has existing orders - it's now hidden from menu");
+          });
+        }
       } else {
         toast.error(err.message || "Failed to delete dish");
       }
@@ -235,23 +236,18 @@ const MenuManagement = () => {
 
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Check if there are any order items referencing this scheduled menu
-      const { data: orderItems } = await supabase
-        .from("order_items")
-        .select("id")
-        .eq("scheduled_menu_id", id)
-        .limit(1);
+      // Try to delete first
+      const { error: deleteError } = await supabase.from("scheduled_menu").delete().eq("id", id);
       
-      if (orderItems && orderItems.length > 0) {
-        // Just hide preorder instead of deleting
-        const { error } = await supabase.from("scheduled_menu").update({ preorder_enabled: false, quantity_available: 0 }).eq("id", id);
-        if (error) throw error;
-        return { hidden: true };
+      if (deleteError) {
+        if (deleteError.message?.includes("foreign key") || deleteError.code === "23503") {
+          // Has orders - just disable preorder
+          const { error } = await supabase.from("scheduled_menu").update({ preorder_enabled: false, quantity_available: 0 }).eq("id", id);
+          if (error) throw error;
+          return { hidden: true };
+        }
+        throw deleteError;
       }
-      
-      // Safe to delete
-      const { error } = await supabase.from("scheduled_menu").delete().eq("id", id);
-      if (error) throw error;
       return { hidden: false };
     },
     onSuccess: (data) => {
