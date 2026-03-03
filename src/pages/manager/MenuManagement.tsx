@@ -46,20 +46,30 @@ const MenuManagement = () => {
   const [quantity, setQuantity] = useState<number>(10);
   const [schedulePrice, setSchedulePrice] = useState<number>(0);
 
-  const { data: dishes = [] } = useQuery({
+  const { data: dishes = [], isLoading } = useQuery({
     queryKey: ["all-dishes"],
     queryFn: async () => {
-      const { data } = await supabase.from("dishes").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("dishes").select("*").order("created_at", { ascending: false });
+      if (error) {
+        console.error("Error fetching dishes:", error);
+        return [];
+      }
       return data || [];
     },
+    staleTime: 30000,
   });
 
   const { data: scheduledDishes = [] } = useQuery({
     queryKey: ["scheduled-menu"],
     queryFn: async () => {
-      const { data } = await supabase.from("scheduled_menu").select("*, dishes(name, image_url)").order("schedule_date", { ascending: false });
+      const { data, error } = await supabase.from("scheduled_menu").select("*, dishes(name, image_url)").order("schedule_date", { ascending: false });
+      if (error) {
+        console.error("Error fetching scheduled:", error);
+        return [];
+      }
       return data || [];
     },
+    staleTime: 30000,
   });
 
   const availableCategories = [...new Set(dishes.flatMap((d: any) => d.categories || d.category || []))] as string[];
@@ -137,13 +147,22 @@ const MenuManagement = () => {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      console.log("Saving dish with form:", form);
       const payload = { ...form, is_available: form.stock_quantity > 0 && form.is_available };
+      console.log("Payload:", payload);
+      
       if (editId) {
         const { error } = await supabase.from("dishes").update(payload).eq("id", editId);
-        if (error) throw error;
+        if (error) {
+          console.error("Update error:", error);
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("dishes").insert(payload);
-        if (error) throw error;
+        if (error) {
+          console.error("Insert error:", error);
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -153,7 +172,10 @@ const MenuManagement = () => {
       setForm(emptyDish);
       toast.success(editId ? "Dish updated!" : "Dish added!");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      console.error("Save error:", err);
+      toast.error(err.message || "Failed to save dish");
+    },
   });
 
   const scheduleMutation = useMutation({

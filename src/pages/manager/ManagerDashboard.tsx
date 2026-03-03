@@ -44,11 +44,16 @@ const ManagerDashboard = () => {
       const { count: dishCount } = await supabase.from("dishes").select("*", { count: 'exact', head: true });
       const { count: userCount } = await supabase.from("profiles").select("*", { count: 'exact', head: true });
       const { count: requestCount } = await supabase.from("special_requests" as any).select("*", { count: 'exact', head: true });
+      
+      const { count: scheduledCount } = await supabase.from("scheduled_menu").select("*", { count: 'exact', head: true });
+      const today = new Date().toISOString().split('T')[0];
+      const { count: preorderCount } = await supabase.from("order_items").select("*", { count: 'exact', head: true }).eq("scheduled_menu_id", "notnull");
 
       const revenue = orders?.reduce((acc, order) => acc + Number(order.total_amount), 0) || 0;
       const completedOrders = orders?.filter(o => o.status === 'completed').length || 0;
+      const totalOrders = orders?.length || 0;
 
-      return { revenue, dishCount, userCount, requestCount, completedOrders };
+      return { revenue, dishCount, userCount, requestCount, completedOrders, totalOrders, scheduledCount: scheduledCount || 0, preorderCount: preorderCount || 0 };
     }
   });
 
@@ -168,20 +173,22 @@ const ManagerDashboard = () => {
                   <div className="flex justify-between items-end">
                     <Label className="font-bold text-sm">Completion Rate</Label>
                     <span className="text-xs font-black text-primary">
-                      {stats ? Math.round((stats.completedOrders / (stats.revenue > 0 ? stats.revenue : 1)) * 100) : 0}%
+                      {stats && stats.totalOrders > 0 
+                        ? Math.round((stats.completedOrders / stats.totalOrders) * 100) 
+                        : 0}%
                     </span>
                   </div>
-                  <Progress value={85} className="h-3 rounded-full" />
+                  <Progress value={stats && stats.totalOrders > 0 ? (stats.completedOrders / stats.totalOrders) * 100 : 0} className="h-3 rounded-full" />
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="p-6 rounded-[2rem] bg-background/50 border border-border/50 text-center">
                     <CalendarDays className="h-6 w-6 text-primary mx-auto mb-2" />
-                    <h4 className="text-2xl font-black">12</h4>
+                    <h4 className="text-2xl font-black">{stats?.scheduledCount || 0}</h4>
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Scheduled This Week</p>
                   </div>
                   <div className="p-6 rounded-[2rem] bg-background/50 border border-border/50 text-center">
                     <ShoppingBag className="h-6 w-6 text-orange-500 mx-auto mb-2" />
-                    <h4 className="text-2xl font-black">8</h4>
+                    <h4 className="text-2xl font-black">{stats?.preorderCount || 0}</h4>
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Active Pre-orders</p>
                   </div>
                 </div>
