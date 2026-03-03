@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 import { format } from "date-fns";
-import { CalendarDays, ShoppingCart, Filter, Send, Minus, Plus, CookingPot, Sun, CloudSun, Sunset, Moon, Sparkles, PhoneCall, ChevronRight, ArrowLeft, Heart, CheckCircle2, Edit2, XCircle, Clock, Trash2, AlertTriangle, Info } from "lucide-react";
+import { CalendarDays, ShoppingCart, Filter, Send, Minus, Plus, CookingPot, Sun, CloudSun, Sunset, Moon, Sparkles, PhoneCall, ChevronRight, ArrowLeft, Heart, CheckCircle2, Edit2, XCircle, Clock, Trash2, AlertTriangle, Info, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,12 @@ const Schedule = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+  
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const fromMenu = searchParams.get('from') === 'menu';
+  const requestedDish = searchParams.get('dish') || '';
   
   const [viewMode, setViewMode] = useState<'browse' | 'request'>('browse');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -38,11 +44,9 @@ const Schedule = () => {
     occasion: "",
     notes: ""
   });
-  
+   
   const { addItem } = useCart();
   const { user, role } = useAuth();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     const channel = supabase
@@ -274,6 +278,29 @@ const Schedule = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8 relative z-10">
+        {fromMenu && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-primary/10 to-orange-500/10 border border-primary/20"
+          >
+            <div className="flex items-center gap-3 text-sm">
+              <Info className="h-5 w-5 text-primary shrink-0" />
+              <div>
+                <p className="font-bold">
+                  {requestedDish ? `Pre-order: ${requestedDish}` : "Pre-Order from Menu"}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Select a date below to schedule your meal. Browse available dishes or request a special dish.
+                  <Button variant="link" className="h-auto p-0 text-xs text-primary" onClick={() => navigate("/")}>
+                    View Full Menu <ArrowRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+        
         <div className="text-center mb-10">
           <h1 className="text-3xl font-serif font-bold">Schedule & Requests</h1>
           <p className="text-muted-foreground mt-2">Browse menus or request a special dish</p>

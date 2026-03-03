@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, ShoppingCart, Plus, Minus } from "lucide-react";
+import { Star, ShoppingCart, Plus, Minus, Calendar } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 import { useNavigate } from "react-router-dom";
@@ -32,17 +32,19 @@ const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, categ
 
   const outOfStock = stockQuantity <= 0;
 
-  const handleAdd = () => {
+  const handlePreOrder = () => {
     if (!user) {
       navigate("/auth");
       return;
     }
+    // Add to cart with scheduledMenuId if available
     addItem({ dishId: id, name, price, imageUrl, maxStock: stockQuantity, scheduledMenuId }, quantity);
-    toast.success(`Added ${quantity} ${name} to cart`);
-    setQuantity(1);
+    // Navigate to schedule page
+    navigate("/schedule?from=menu&dish=" + encodeURIComponent(name));
+    toast.info("Select a date to pre-order your meal!");
   };
 
-  const increaseQuantity = () => setQuantity(q => Math.min(q + 1, stockQuantity));
+  const increaseQuantity = () => setQuantity(q => Math.min(q + 1, stockQuantity || 10));
   const decreaseQuantity = () => setQuantity(q => Math.max(q - 1, 1));
 
   return (
@@ -147,7 +149,7 @@ const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, categ
                   size="icon"
                   className="h-9 w-9 hover:bg-primary/10 rounded-xl"
                   onClick={increaseQuantity}
-                  disabled={quantity >= stockQuantity}
+                  disabled={quantity >= (stockQuantity || 10)}
                 >
                   <Plus className="h-4 w-4 text-primary" />
                 </Button>
@@ -155,12 +157,12 @@ const DishCard = ({ id, name, description, price, imageUrl, stockQuantity, categ
             )}
 
             <Button
-              onClick={handleAdd}
+              onClick={handlePreOrder}
               disabled={outOfStock}
               className="w-full gap-2 rounded-[1.25rem] h-14 font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] transform active:scale-95 bg-primary hover:bg-primary/90"
             >
-              <ShoppingCart className="h-5 w-5" />
-              {outOfStock ? "Sold Out" : `Add to Plate • ₹${(price * quantity).toFixed(0)}`}
+              <Calendar className="h-5 w-5" />
+              {outOfStock ? "Sold Out" : `Pre-Order • ₹${(price * quantity).toFixed(0)}`}
             </Button>
           </div>
         </CardContent>
