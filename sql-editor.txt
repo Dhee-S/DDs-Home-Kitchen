@@ -14,6 +14,34 @@ ADD COLUMN IF NOT EXISTS category TEXT[] DEFAULT '{}';
 ALTER TABLE special_requests
 ADD COLUMN IF NOT EXISTS dish_type TEXT DEFAULT 'veg';
 
+-- Auto-expire scheduled_menu: 
+-- Weekly specials expire after their scheduled date (schedule_date < today)
+-- Today's special stays until manually removed by manager
+CREATE OR REPLACE FUNCTION public.expire_old_scheduled_items()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Delete items where schedule_date has passed (weekly items)
+  DELETE FROM public.scheduled_menu 
+  WHERE schedule_date < CURRENT_DATE;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Create trigger to auto-expire old scheduled items
+DROP TRIGGER IF EXISTS trigger_expire_scheduled ON public.scheduled_menu;
+CREATE TRIGGER trigger_expire_scheduled
+  AFTER INSERT OR UPDATE ON public.scheduled_menu
+  FOR EACH ROW
+  EXECUTE FUNCTION public.expire_old_scheduled_items();
+
+-- Run cleanup now (manual)
+DELETE FROM public.scheduled_menu WHERE schedule_date < CURRENT_DATE;
+
 -- Verify the columns
 SELECT table_name, column_name, data_type 
 FROM information_schema.columns 

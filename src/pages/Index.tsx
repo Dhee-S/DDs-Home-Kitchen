@@ -44,13 +44,12 @@ const Index = () => {
 
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
-  const dayOfWeek = today.getDay();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - dayOfWeek);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  const weekStartStr = weekStart.toISOString().split('T')[0];
-  const weekEndStr = weekEnd.toISOString().split('T')[0];
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const nextWeek = new Date(today);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+  const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
   const { data: dishes = [], isLoading } = useQuery({
     queryKey: ["dishes", filter],
@@ -61,20 +60,30 @@ const Index = () => {
         query = query.eq("is_available", true);
       }
 
-      const { data } = await query.order("created_at", { ascending: false });
+      const { data, error } = await query.order("created_at", { ascending: false });
+      if (error) {
+        console.error("Dishes fetch error:", error);
+        return [];
+      }
       return data || [];
     },
+    staleTime: 30000,
   });
 
-  const { data: scheduledDishes = [] } = useQuery({
-    queryKey: ["scheduled-dishes"],
+  const { data: scheduledDishes = [], isLoading: scheduledLoading } = useQuery({
+    queryKey: ["scheduled-dishes", todayStr],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("scheduled_menu")
         .select("*, dishes(*)")
         .gte("schedule_date", todayStr)
-        .lte("schedule_date", weekEndStr)
+        .lte("schedule_date", nextWeekStr)
         .order("schedule_date");
+      
+      if (error) {
+        console.error("Scheduled dishes fetch error:", error);
+        return [];
+      }
       return data || [];
     }
   });
@@ -83,11 +92,20 @@ const Index = () => {
   const weeklySpecialDishes = scheduledDishes.filter((item: any) => item.schedule_date !== todayStr);
 
   const { data: allScheduledDishIds = [] } = useQuery({
-    queryKey: ["scheduled-dishes-ids"],
+    queryKey: ["scheduled-dishes-ids", todayStr],
     queryFn: async () => {
-      const { data } = await supabase.from("scheduled_menu").select("dish_id");
+      const { data, error } = await supabase
+        .from("scheduled_menu")
+        .select("dish_id")
+        .gte("schedule_date", todayStr);
+      
+      if (error) {
+        console.error("Scheduled IDs fetch error:", error);
+        return [];
+      }
       return data?.map(d => d.dish_id) || [];
-    }
+    },
+    staleTime: 30000,
   });
 
   const filteredDishes = dishes.filter((dish: any) => {
