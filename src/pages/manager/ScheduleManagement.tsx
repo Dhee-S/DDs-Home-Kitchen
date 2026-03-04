@@ -24,16 +24,19 @@ const ScheduleManagement = () => {
   const today = new Date().toISOString().split('T')[0];
   const nextWeek = addDays(new Date(), 7).toISOString().split('T')[0];
 
-  const { data: dishes = [], isLoading: dishesLoading } = useQuery({
+  const { data: dishes = [], isLoading: dishesLoading, refetch: refetchDishes } = useQuery({
     queryKey: ["all-dishes"],
     queryFn: async () => {
       const { data, error } = await supabase.from("dishes").select("id, name, selling_price, image_url").order("name");
       if (error) {
         console.error("Dishes fetch error:", error);
+        toast.error("Failed to load dishes: " + error.message);
         return [];
       }
+      console.log("Loaded dishes:", data?.length);
       return data || [];
     },
+    staleTime: 0,
   });
 
   const { data: scheduled = [], isLoading: scheduledLoading } = useQuery({
@@ -140,18 +143,27 @@ const ScheduleManagement = () => {
                 <Input type="date" value={form.schedule_date} min={today} max={nextWeek} onChange={(e) => setForm({ ...form, schedule_date: e.target.value })} />
               </div>
               <div>
-                <Label>Select Dish</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Select Dish</Label>
+                  <Button variant="ghost" size="sm" onClick={() => refetchDishes()} className="h-6 text-xs gap-1">
+                    <Loader2 className={`h-3 w-3 ${dishesLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto mt-1">
-                  {dishes.map((d: any) => (
-                    <div
-                      key={d.id}
-                      onClick={() => setForm({ ...form, dish_id: d.id, schedule_price: d.selling_price })}
-                      className={`p-2 rounded-lg border cursor-pointer transition-all ${form.dish_id === d.id ? "border-primary bg-primary/10" : "border-border hover:bg-muted"}`}
-                    >
-                      <p className="font-medium text-sm truncate">{d.name}</p>
-                      <p className="text-xs text-muted-foreground">₹{d.selling_price}</p>
-                    </div>
-                  ))}
+                  {dishes.length === 0 && !dishesLoading ? (
+                    <p className="col-span-2 text-center text-sm text-muted-foreground py-4">No dishes available. Make sure dishes are added to the menu.</p>
+                  ) : (
+                    dishes.map((d: any) => (
+                      <div
+                        key={d.id}
+                        onClick={() => setForm({ ...form, dish_id: d.id, schedule_price: d.selling_price })}
+                        className={`p-2 rounded-lg border cursor-pointer transition-all ${form.dish_id === d.id ? "border-primary bg-primary/10" : "border-border hover:bg-muted"}`}
+                      >
+                        <p className="font-medium text-sm truncate">{d.name}</p>
+                        <p className="text-xs text-muted-foreground">₹{d.selling_price}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
