@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
@@ -7,24 +7,89 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Minus, Plus, Trash2, Loader2, ShoppingBag, ArrowLeft, ChefHat, Phone, CreditCard, CheckCircle, Wallet } from "lucide-react";
+import { Minus, Plus, Trash2, Loader2, ShoppingBag, ArrowLeft, ChefHat, Phone, CreditCard, CheckCircle, Wallet, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { format, addDays } from "date-fns";
 
 const PAYMENT_NUMBER = "7904935160";
 
+interface ScheduledOption {
+  id: string;
+  schedule_date: string;
+  quantity_remaining: number;
+}
+
 const Cart = () => {
-  const { items, updateQuantity, removeItem, clearCart, totalAmount } = useCart();
+  const { items, updateQuantity, removeItem, updateScheduledDate, clearCart, totalAmount } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
   const [orderCode, setOrderCode] = useState<string | null>(null);
   const [showPaymentInfo, setShowPaymentInfo] = useState(false);
+  const [scheduledOptions, setScheduledOptions] = useState<Record<string, ScheduledOption[]>>({});
+  const [loadingDates, setLoadingDates] = useState(false);
+
+  // Fetch scheduled menu options for items without scheduledMenuId
+  useEffect(() => {
+    const fetchScheduledOptions = async () => {
+      const itemsNeedingSchedule = items.filter(i => !i.scheduledMenuId);
+      if (itemsNeedingSchedule.length === 0) return;
+
+      setLoadingDates(true);
+      try {
+        const today = format(new Date(), "yyyy-MM-dd");
+        const nextWeek = format(addDays(new Date(), 7), "yyyy-MM-dd");
+        
+        const { data, error } = await supabase
+          .from("scheduled_menu")
+          .select("id, dish_id, schedule_date, quantity_remaining")
+          .in("dish_id", itemsNeedingSchedule.map(i => i.dishId))
+          .gte("schedule_date", today)
+          .lte("schedule_date", nextWeek)
+          .eq("preorder_enabled", true)
+          .gt("quantity_remaining", 0)
+          .order("schedule_date") as any;
+
+        if (!error && data) {
+          const options: Record<string, ScheduledOption[]> = {};
+          data.forEach((item: any) => {
+            if (!options[item.dish_id]) {
+              options[item.dish_id] = [];
+            }
+            options[item.dish_id].push(item);
+          });
+          setScheduledOptions(options);
+        }
+      } catch (err) {
+        console.error("Error fetching scheduled options:", err);
+      }
+      setLoadingDates(false);
+    };
+
+    fetchScheduledOptions();
+  }, [items]);
+
+  const hasItemsNeedingSchedule = items.some(i => !i.scheduledMenuId && !i.scheduledDate);
+  const hasAvailableDates = Object.keys(scheduledOptions).length > 0;
+
+  const handleDateSelect = (itemCode: string, dishId: string, option: ScheduledOption) => {
+    updateScheduledDate(itemCode, option.schedule_date, option.id);
+    toast.success(`Scheduled for ${format(new Date(option.schedule_date), "MMM d, yyyy")}`);
+  };
 
   const placeOrder = async () => {
     if (!user || items.length === 0) return;
+    
+    // Check if all items have scheduled dates
+    const itemsWithoutDate = items.filter(i => !i.scheduledMenuId && !i.scheduledDate);
+    if (itemsWithoutDate.length > 0) {
+      toast.error("Please select a date for all items before placing order");
+      return;
+    }
+
     setPlacing(true);
     try {
       const orderItems = items.map((item) => ({
@@ -185,9 +250,23 @@ const Cart = () => {
 
         <div className="grid md:grid-cols-[1fr_340px] gap-6">
           <div className="space-y-4">
+            {/* Warning if items need scheduling */}
+            {hasItemsNeedingSchedule && hasAvailableDates && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-4"
+              >
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <Calendar className="h-5 w-5" />
+                  <span className="font-semibold">Please select a delivery date for your items</span>
+                </div>
+              </motion.div>
+            )}
+            
             <AnimatePresence>
               {items.map((item) => (
-                <motion.div key={item.dishId} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95 }}>
+                <motion.div key={item.itemCode} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95 }}>
                   <Card className="glass-card border-0 shadow-lg group hover:shadow-xl transition-all rounded-3xl overflow-hidden">
                     <CardContent className="flex flex-col sm:flex-row items-center gap-4 p-4">
                       <div className="h-24 w-24 rounded-2xl overflow-hidden bg-muted shrink-0 border border-white/20 shadow-inner">
@@ -200,20 +279,46 @@ const Cart = () => {
                       <div className="flex-1 min-w-0 text-center sm:text-left">
                         <h3 className="font-bold text-lg truncate mb-1 leading-tight">{item.name}</h3>
                         <p className="font-black text-primary">₹{item.price}</p>
+                        
+                        {/* Show selected date or date selector */}
+                        {item.scheduledDate ? (
+                          <Badge className="mt-2 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {format(new Date(item.scheduledDate), "MMM d, yyyy")}
+                          </Badge>
+                        ) : scheduledOptions[item.dishId] && scheduledOptions[item.dishId].length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1 justify-center sm:justify-start">
+                            {scheduledOptions[item.dishId].slice(0, 4).map((opt) => (
+                              <Button
+                                key={opt.id}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7 px-2 rounded-full border-primary/30 text-primary hover:bg-primary/10"
+                                onClick={() => handleDateSelect(item.itemCode, item.dishId, opt)}
+                              >
+                                {format(new Date(opt.schedule_date), "MMM d")}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            No schedule available
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
                         <div className="flex items-center gap-3 bg-muted/50 p-1 rounded-2xl border border-border/40 w-full sm:w-auto justify-center">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-background rounded-xl" onClick={() => updateQuantity(item.dishId, item.quantity - 1)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-background rounded-xl" onClick={() => updateQuantity(item.itemCode, item.quantity - 1)}>
                             <Minus className="h-3 w-3 text-primary" />
                           </Button>
                           <span className="w-6 text-center font-black text-lg">{item.quantity}</span>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-background rounded-xl" onClick={() => updateQuantity(item.dishId, item.quantity + 1)} disabled={item.quantity >= (item.maxStock || 100)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-background rounded-xl" onClick={() => updateQuantity(item.itemCode, item.quantity + 1)} disabled={item.quantity >= (item.maxStock || 100)}>
                             <Plus className="h-3 w-3 text-primary" />
                           </Button>
                         </div>
                         <div className="flex items-center justify-between w-full sm:w-auto gap-4 px-2">
                           <p className="font-black text-xl">₹{(item.price * item.quantity).toFixed(0)}</p>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10 rounded-full transition-colors" onClick={() => removeItem(item.dishId)}>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10 rounded-full transition-colors" onClick={() => removeItem(item.itemCode)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -252,8 +357,13 @@ const Cart = () => {
                   </div>
                 </div>
 
-                <Button className="w-full h-16 rounded-2xl text-lg font-black shadow-xl shadow-primary/20 hover:scale-[1.02] transform transition-all active:scale-95 bg-primary hover:bg-primary/90" size="lg" onClick={placeOrder} disabled={placing}>
-                  {placing ? <Loader2 className="h-6 w-6 animate-spin mr-3" /> : "Place Order"}
+                <Button 
+                  className="w-full h-16 rounded-2xl text-lg font-black shadow-xl shadow-primary/20 hover:scale-[1.02] transform transition-all active:scale-95 bg-primary hover:bg-primary/90" 
+                  size="lg" 
+                  onClick={placeOrder} 
+                  disabled={placing || hasItemsNeedingSchedule}
+                >
+                  {placing ? <Loader2 className="h-6 w-6 animate-spin mr-3" /> : hasItemsNeedingSchedule ? "Select Date First" : "Place Order"}
                 </Button>
               </CardContent>
             </Card>

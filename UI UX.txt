@@ -1,0 +1,1398 @@
+hero page where scroll change background as a modern look vegetable falling into a pan 
+1.You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+container-scroll-animation.tsx
+"use client";
+import React, { useRef } from "react";
+import { useScroll, useTransform, motion, MotionValue } from "framer-motion";
+
+export const ContainerScroll = ({
+  titleComponent,
+  children,
+}: {
+  titleComponent: string | React.ReactNode;
+  children: React.ReactNode;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+  });
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
+
+  const scaleDimensions = () => {
+    return isMobile ? [0.7, 0.9] : [1.05, 1];
+  };
+
+  const rotate = useTransform(scrollYProgress, [0, 1], [20, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], scaleDimensions());
+  const translate = useTransform(scrollYProgress, [0, 1], [0, -100]);
+
+  return (
+    <div
+      className="h-[60rem] md:h-[80rem] flex items-center justify-center relative p-2 md:p-20"
+      ref={containerRef}
+    >
+      <div
+        className="py-10 md:py-40 w-full relative"
+        style={{
+          perspective: "1000px",
+        }}
+      >
+        <Header translate={translate} titleComponent={titleComponent} />
+        <Card rotate={rotate} translate={translate} scale={scale}>
+          {children}
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export const Header = ({ translate, titleComponent }: any) => {
+  return (
+    <motion.div
+      style={{
+        translateY: translate,
+      }}
+      className="div max-w-5xl mx-auto text-center"
+    >
+      {titleComponent}
+    </motion.div>
+  );
+};
+
+export const Card = ({
+  rotate,
+  scale,
+  children,
+}: {
+  rotate: MotionValue<number>;
+  scale: MotionValue<number>;
+  translate: MotionValue<number>;
+  children: React.ReactNode;
+}) => {
+  return (
+    <motion.div
+      style={{
+        rotateX: rotate,
+        scale,
+        boxShadow:
+          "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a, 0 233px 65px #00000003",
+      }}
+      className="max-w-5xl -mt-12 mx-auto h-[30rem] md:h-[40rem] w-full border-4 border-[#6C6C6C] p-2 md:p-6 bg-[#222222] rounded-[30px] shadow-2xl"
+    >
+      <div className=" h-full w-full  overflow-hidden rounded-2xl bg-gray-100 dark:bg-zinc-900 md:rounded-2xl md:p-4 ">
+        {children}
+      </div>
+    </motion.div>
+  );
+};
+
+
+demo.tsx
+"use client";
+import React from "react";
+import { ContainerScroll } from "@/components/ui/container-scroll-animation";
+import Image from "next/image";
+
+export function HeroScrollDemo() {
+  return (
+    <div className="flex flex-col overflow-hidden pb-[500px] pt-[1000px]">
+      <ContainerScroll
+        titleComponent={
+          <>
+            <h1 className="text-4xl font-semibold text-black dark:text-white">
+              Unleash the power of <br />
+              <span className="text-4xl md:text-[6rem] font-bold mt-1 leading-none">
+                Scroll Animations
+              </span>
+            </h1>
+          </>
+        }
+      >
+        <Image
+          src={`https://ui.aceternity.com/_next/image?url=%2Flinear.webp&w=3840&q=75`}
+          alt="hero"
+          height={720}
+          width={1400}
+          className="mx-auto rounded-2xl object-cover h-full object-left-top"
+          draggable={false}
+        />
+      </ContainerScroll>
+    </div>
+  );
+}
+
+```
+
+Install NPM dependencies:
+```bash
+framer-motion
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+2.You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+text-scroll-animation.tsx
+"use client";
+
+import { motion, useScroll, useTransform } from "framer-motion";
+import ReactLenis from "lenis/react";
+import React, { useRef } from "react";
+import { cn } from "@/lib/utils";
+
+type CharacterProps = {
+  char: string;
+  index: number;
+  centerIndex: number;
+  scrollYProgress: any;
+};
+
+
+const CharacterV1 = ({
+  char,
+  index,
+  centerIndex,
+  scrollYProgress,
+}: CharacterProps) => {
+  const isSpace = char === " ";
+  const distanceFromCenter = index - centerIndex;
+
+  const x = useTransform(scrollYProgress, [0, 0.5], [distanceFromCenter * 50, 0]);
+  const rotateX = useTransform(scrollYProgress, [0, 0.5], [distanceFromCenter * 50, 0]);
+
+  return (
+    <motion.span
+      className={cn("inline-block text-orange-500", isSpace && "w-4")}
+      style={{ x, rotateX }}
+    >
+      {char}
+    </motion.span>
+  );
+};
+
+
+const CharacterV2 = ({
+  char,
+  index,
+  centerIndex,
+  scrollYProgress,
+}: CharacterProps) => {
+  const distanceFromCenter = index - centerIndex;
+
+  const x = useTransform(scrollYProgress, [0, 0.5], [distanceFromCenter * 50, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.5], [0.75, 1]);
+  const y = useTransform(scrollYProgress, [0, 0.5], [Math.abs(distanceFromCenter) * 50, 0]);
+
+  return (
+    <motion.img
+      src={char}
+      alt=""
+      className="h-16 w-16 shrink-0 object-contain will-change-transform"
+      style={{ x, scale, y, transformOrigin: "center" }}
+    />
+  );
+};
+
+
+const CharacterV3 = ({
+  char,
+  index,
+  centerIndex,
+  scrollYProgress,
+}: CharacterProps) => {
+  const distanceFromCenter = index - centerIndex;
+
+  const x = useTransform(scrollYProgress, [0, 0.5], [distanceFromCenter * 90, 0]);
+  const rotate = useTransform(scrollYProgress, [0, 0.5], [distanceFromCenter * 50, 0]);
+  const y = useTransform(scrollYProgress, [0, 0.5], [-Math.abs(distanceFromCenter) * 20, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.5], [0.75, 1]);
+
+  return (
+    <motion.img
+      src={char}
+      alt=""
+      className="h-16 w-16 shrink-0 object-contain will-change-transform"
+      style={{ x, rotate, y, scale, transformOrigin: "center" }}
+    />
+  );
+};
+
+const Skiper31 = () => {
+  const targetRef = useRef<HTMLDivElement | null>(null);
+  const targetRef2 = useRef<HTMLDivElement | null>(null);
+  const targetRef3 = useRef<HTMLDivElement | null>(null);
+
+  const { scrollYProgress } = useScroll({ target: targetRef });
+  const { scrollYProgress: scrollYProgress2 } = useScroll({ target: targetRef2 });
+  const { scrollYProgress: scrollYProgress3 } = useScroll({ target: targetRef3 });
+
+  
+  const text = "see more from ";
+  const characters = text.split("");
+  const centerIndex = Math.floor(characters.length / 2);
+
+  
+  const macIcon = [
+    "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/discord.svg",
+    "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/figma.svg",
+    "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/framer.svg",
+    "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/github.svg",
+    "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/mongodb.svg",
+    "https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/notion.svg",
+    
+  ];
+  const iconCenterIndex = Math.floor(macIcon.length / 2);
+
+  return (
+    <ReactLenis root>
+      <main className="w-full bg-white">
+        {/* Шапка-подсказка */}
+        <div className="top-22 absolute left-1/2 z-10 grid -translate-x-1/2 content-start justify-items-center gap-6 text-center text-black">
+          <span className="relative max-w-[12ch] text-xs uppercase leading-tight opacity-40 after:absolute after:left-1/2 after:top-full after:h-16 after:w-px after:bg-gradient-to-b after:from-[#f5f4f3] after:to-black after:content-['']">
+            Scroll to see more
+          </span>
+        </div>
+
+        {/* Блок 1 — текст */}
+        <div
+          ref={targetRef}
+          className="relative box-border flex h-[210vh] items-center justify-center gap-[2vw] overflow-hidden bg-[#f5f4f3] p-[2vw]"
+        >
+          <div
+            className="font-geist w-full max-w-4xl text-center text-6xl font-bold uppercase tracking-tighter text-black"
+            style={{ perspective: "500px" }}
+          >
+            {characters.map((char, index) => (
+              <CharacterV1
+                key={index}
+                char={char}
+                index={index}
+                centerIndex={centerIndex}
+                scrollYProgress={scrollYProgress}
+              />
+            ))}
+          </div>
+        </div>
+
+        
+        <div
+          ref={targetRef2}
+          className="relative -mt-[100vh] box-border flex h-[210vh] flex-col items-center justify-center gap-[2vw] overflow-hidden bg-[#f5f4f3] p-[2vw]"
+        >
+          <p className="font-geist flex items-center justify-center gap-3 text-2xl font-medium tracking-tight text-black">
+            <Bracket className="h-12 text-black" />
+            <span className="font-geist font-medium">integrate with your fav tech stack</span>
+            <Bracket className="h-12 scale-x-[-1] text-black" />
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-8">
+            {macIcon.map((char, index) => (
+              <CharacterV2
+                key={index}
+                char={char}
+                index={index}
+                centerIndex={iconCenterIndex}
+                scrollYProgress={scrollYProgress2}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Блок 3 — иконки (вариант с поворотом) */}
+        <div
+          ref={targetRef3}
+          className="relative -mt-[95vh] box-border flex h-[210vh] flex-col items-center justify-center gap-[2vw] overflow-hidden bg-[#f5f4f3] p-[2vw]"
+        >
+          <p className="font-geist flex items-center justify-center gap-3 text-2xl font-medium tracking-tight text-black">
+            <Bracket className="h-12 text-black" />
+            <span className="font-geist font-medium">integrate with your fav tech stack</span>
+            <Bracket className="h-12 scale-x-[-1] text-black" />
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-8" style={{ perspective: "500px" }}>
+            {macIcon.map((char, index) => (
+              <CharacterV3
+                key={index}
+                char={char}
+                index={index}
+                centerIndex={iconCenterIndex}
+                scrollYProgress={scrollYProgress3}
+              />
+            ))}
+          </div>
+        </div>
+      </main>
+    </ReactLenis>
+  );
+};
+
+export { CharacterV1, CharacterV2, CharacterV3, Skiper31 };
+
+const Bracket = ({ className }: { className: string }) => {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 27 78" className={className}>
+      <path
+        fill="#000"
+        d="M26.52 77.21h-5.75c-6.83 0-12.38-5.56-12.38-12.38V48.38C8.39 43.76 4.63 40 .01 40v-4c4.62 0 8.38-3.76 8.38-8.38V12.4C8.38 5.56 13.94 0 20.77 0h5.75v4h-5.75c-4.62 0-8.38 3.76-8.38 8.38V27.6c0 4.34-2.25 8.17-5.64 10.38 3.39 2.21 5.64 6.04 5.64 10.38v16.45c0 4.62 3.76 8.38 8.38 8.38h5.75v4.02Z"
+      />
+    </svg>
+  );
+};
+
+
+demo.tsx
+import { Skiper31 } from "@/components/ui/text-scroll-animation";
+
+export default function DemoOne() {
+  return <Skiper31/>;
+}
+
+```
+
+Install NPM dependencies:
+```bash
+lenis, framer-motion
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+cart 3. You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+order-summary.tsx
+"use client"
+
+import * as React from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
+
+export interface OrderItem {
+  name: string
+  color: string
+  size: string
+  price: number
+  quantity: number
+}
+
+export interface OrderSummaryProps extends React.HTMLAttributes<HTMLDivElement> {
+  items: OrderItem[]
+  shippingCost: number
+  shippingDiscount: number
+}
+
+const OrderSummary = React.forwardRef<HTMLDivElement, OrderSummaryProps>(
+  ({ items, shippingCost, shippingDiscount, className, ...props }, ref) => {
+    const total = React.useMemo(() => {
+      const subtotal = items.reduce(
+        (acc, item) => acc + item.price * item.quantity,
+        0
+      )
+      return subtotal + shippingCost - shippingDiscount
+    }, [items, shippingCost, shippingDiscount])
+
+    const subtotal = React.useMemo(() => {
+      return items.reduce((acc, item) => acc + item.price * item.quantity, 0)
+    }, [items])
+
+    return (
+      <Card
+        ref={ref}
+        className={cn("w-full rounded-md pt-6 shadow-none", className)}
+        {...props}
+      >
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            {items.map((item, index) => (
+              <div key={index} className="flex justify-between text-sm">
+                <div>
+                  <p className="font-medium">{item.name}</p>
+                  <p className="text-muted-foreground">
+                    {item.color} • Size {item.size} • Qty {item.quantity}
+                  </p>
+                </div>
+                <p className="font-medium">RP {item.price.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <p>Product Price ({items.length} Item)</p>
+              <p>RP {subtotal.toLocaleString()}</p>
+            </div>
+            <div className="flex justify-between">
+              <p>Shipping Cost Subtotal</p>
+              <p>RP {shippingCost.toLocaleString()}</p>
+            </div>
+            <div className="flex justify-between text-green-600">
+              <p>Shipping Discount</p>
+              <p>-RP {shippingDiscount.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex justify-between font-medium">
+            <p>Total Sales</p>
+            <p>RP {total.toLocaleString()}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+)
+
+OrderSummary.displayName = "OrderSummary"
+
+export { OrderSummary }
+
+demo.tsx
+import { OrderSummary } from "@/components/ui/order-summary"
+
+const demoItems = [
+  {
+    name: "Nike Air Max 270",
+    color: "Black/White",
+    size: "42",
+    price: 2199000,
+    quantity: 1,
+  },
+  {
+    name: "Adidas Ultraboost 21",
+    color: "Grey/Blue",
+    size: "43",
+    price: 2499000,
+    quantity: 2,
+  },
+  {
+    name: "Puma RS-X",
+    color: "White/Red",
+    size: "41",
+    price: 1899000,
+    quantity: 1,
+  },
+]
+
+function OrderSummaryDemo() {
+  return (
+    <div className="space-y-8">
+      <div>
+        <OrderSummary
+          items={demoItems}
+          shippingCost={50000}
+          shippingDiscount={25000}
+        />
+      </div>
+    </div>
+  )
+}
+
+export { OrderSummaryDemo }
+```
+
+Copy-paste these files for dependencies:
+```tsx
+shadcn/card
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      className,
+    )}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      "text-2xl font-semibold leading-none tracking-tight",
+      className,
+    )}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+
+```
+```tsx
+shadcn/separator
+"use client"
+
+import * as React from "react"
+import * as SeparatorPrimitive from "@radix-ui/react-separator"
+
+import { cn } from "@/lib/utils"
+
+const Separator = React.forwardRef<
+  React.ElementRef<typeof SeparatorPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>
+>(
+  (
+    { className, orientation = "horizontal", decorative = true, ...props },
+    ref
+  ) => (
+    <SeparatorPrimitive.Root
+      ref={ref}
+      decorative={decorative}
+      orientation={orientation}
+      className={cn(
+        "shrink-0 bg-border",
+        orientation === "horizontal" ? "h-[1px] w-full" : "h-full w-[1px]",
+        className
+      )}
+      {...props}
+    />
+  )
+)
+Separator.displayName = SeparatorPrimitive.Root.displayName
+
+export { Separator }
+
+```
+
+Install NPM dependencies:
+```bash
+@radix-ui/react-separator
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+
+cart payment 4.You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+progress-indicator.tsx
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
+import { CircleCheck } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const ProgressIndicator = () => {
+    const [step, setStep] = useState(1)
+    const [isExpanded, setIsExpanded] = useState(true)
+
+    const handleContinue = () => {
+
+        if (step < 3) {
+            setStep(step + 1)
+            setIsExpanded(false)
+        }
+    }
+
+    const handleBack = () => {
+        if (step == 2) {
+            setIsExpanded(true)
+        }
+        if (step > 1) {
+            setStep(step - 1)
+        }
+    }
+
+    return (
+        <div className="flex flex-col items-center justify-center gap-8">
+
+            <div className="flex items-center gap-6 relative">
+
+                {[1, 2, 3].map((dot) => (
+                    <div
+                        key={dot}
+                        className={cn(
+                            "w-2 h-2 rounded-full relative z-10",
+                            dot <= step ? "bg-white" : "bg-gray-300"
+                        )}
+                    />
+                ))}
+
+                {/* Green progress overlay */}
+                <motion.div
+                    initial={{ width: '12px', height: "24px", x: 0 }}
+                    animate={{
+                        width: step === 1 ? '24px' : step === 2 ? '60px' : '96px',
+                        x: 0
+                    }}
+                    className="absolute -left-[8px] -top-[8px] -translate-y-1/2 h-3 bg-green-500 rounded-full"
+                    transition={{
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 20,
+                        mass: 0.8,
+                        bounce: 0.25,
+                        duration: 0.6
+                    }}
+                />
+            </div>
+
+            {/* Buttons container */}
+            <div className="w-full max-w-sm">
+                <motion.div
+                    className="flex items-center gap-1"
+                    animate={{
+                        justifyContent: isExpanded ? 'stretch' : 'space-between'
+                    }}
+
+                >
+                    {!isExpanded && (
+                        <motion.button
+                            initial={{ opacity: 0, width: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, width: "64px", scale: 1 }}
+                            transition={{
+                                type: "spring",
+                                stiffness: 400,
+                                damping: 15,
+                                mass: 0.8,
+                                bounce: 0.25,
+                                duration: 0.6,
+                                opacity: { duration: 0.2 }
+                            }}
+                            onClick={handleBack}
+                            className="px-4 py-3 text-black flex items-center justify-center   bg-gray-100  font-semibold rounded-full hover:bg-gray-50 hover:border transition-colors flex-1 w-16 text-sm"
+                        >
+                            Back
+                        </motion.button>
+                    )}
+                    <motion.button
+                        onClick={handleContinue}
+                        animate={{
+                            flex: isExpanded ? 1 : 'inherit',
+                        }}
+                        className={cn(
+                            "px-4 py-3 rounded-full text-white bg-[#006cff]   transition-colors flex-1 w-56",
+                            !isExpanded && 'w-44'
+                        )}
+                    >
+                        <div className="flex items-center font-[600] justify-center gap-2 text-sm">
+                            {step === 3 && (
+                                <motion.div
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{
+                                        type: "spring",
+                                        stiffness: 500,
+                                        damping: 15,
+                                        mass: 0.5,
+                                        bounce: 0.4
+                                    }}
+                                >
+                                    <CircleCheck size={16} />
+                                </motion.div>
+                            )}
+                            {step === 3 ? 'Finish' : 'Continue'}
+                        </div>
+                    </motion.button>
+                </motion.div>
+            </div>
+        </div>
+    )
+}
+
+export default ProgressIndicator
+
+demo.tsx
+import ProgressIndicator from "@/components/ui/progress-indicator";
+
+export function ProgressIndicatorDemo() {
+    return <ProgressIndicator />;
+}
+```
+
+Install NPM dependencies:
+```bash
+lucide-react, framer-motion
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+master cook 5.You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+animated-underline-text-one.tsx
+import * as React from "react";
+import { motion, Variants } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+interface AnimatedTextProps extends React.HTMLAttributes<HTMLDivElement> {
+  text: string;
+  textClassName?: string;
+  underlineClassName?: string;
+  underlinePath?: string;
+  underlineHoverPath?: string;
+  underlineDuration?: number;
+}
+
+const AnimatedText = React.forwardRef<HTMLDivElement, AnimatedTextProps>(
+  (
+    {
+      text,
+      textClassName,
+      underlineClassName,
+      underlinePath = "M 0,10 Q 75,0 150,10 Q 225,20 300,10",
+      underlineHoverPath = "M 0,10 Q 75,20 150,10 Q 225,0 300,10",
+      underlineDuration = 1.5,
+      ...props
+    },
+    ref
+  ) => {
+    const pathVariants: Variants = {
+      hidden: {
+        pathLength: 0,
+        opacity: 0,
+      },
+      visible: {
+        pathLength: 1,
+        opacity: 1,
+        transition: {
+          duration: underlineDuration,
+          ease: "easeInOut",
+        },
+      },
+    };
+
+    return (
+      <div
+        ref={ref}
+        className={cn("flex flex-col items-center justify-center gap-2", props.className)}
+      >
+        <div className="relative">
+          <motion.h1
+            className={cn("text-4xl font-bold text-center", textClassName)}
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6 }}
+            whileHover={{ scale: 1.02 }}
+          >
+            {text}
+          </motion.h1>
+
+          <motion.svg
+            width="100%"
+            height="20"
+            viewBox="0 0 300 20"
+            className={cn("absolute -bottom-4 left-0", underlineClassName)}
+          >
+            <motion.path
+              d={underlinePath}
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+              variants={pathVariants}
+              initial="hidden"
+              animate="visible"
+              whileHover={{
+                d: underlineHoverPath,
+                transition: { duration: 0.8 },
+              }}
+            />
+          </motion.svg>
+        </div>
+      </div>
+    );
+  }
+);
+
+AnimatedText.displayName = "AnimatedText";
+
+export { AnimatedText };
+
+
+demo.tsx
+import { AnimatedText } from "@/components/ui/animated-underline-text-one";
+
+function DefaultDemo() {
+  return <AnimatedText text="Namaste World!" />;
+}
+
+function CustomStyleDemo() {
+  return (
+    <AnimatedText
+      text="Namaste World!"
+      textClassName="text-5xl font-bold mb-2"
+      underlinePath="M 0,10 Q 75,0 150,10 Q 225,20 300,10"
+      underlineHoverPath="M 0,10 Q 75,20 150,10 Q 225,0 300,10"
+      underlineDuration={1.5}
+    />
+  );
+}
+
+export { DefaultDemo, CustomStyleDemo };
+
+```
+
+Install NPM dependencies:
+```bash
+framer-motion
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+manager check payment 6. You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+checkbox.tsx
+"use client";
+
+import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+import * as React from "react";
+
+import { cn } from "@/lib/utils";
+
+const Checkbox = React.forwardRef<
+  React.ElementRef<typeof CheckboxPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <CheckboxPrimitive.Root
+    ref={ref}
+    className={cn(
+      "peer size-4 shrink-0 rounded border border-input shadow-sm shadow-black/5 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=indeterminate]:border-primary data-[state=checked]:bg-primary data-[state=indeterminate]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:text-primary-foreground",
+      className
+    )}
+    {...props}
+  >
+    <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
+      {props.checked === "indeterminate" ? (
+        <svg
+          width="9"
+          height="9"
+          viewBox="0 0 9 9"
+          fill="currentcolor"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M0.75 4.5C0.75 4.08579 1.08579 3.75 1.5 3.75H7.5C7.91421 3.75 8.25 4.08579 8.25 4.5C8.25 4.91421 7.91421 5.25 7.5 5.25H1.5C1.08579 5.25 0.75 4.91421 0.75 4.5Z"
+          />
+        </svg>
+      ) : (
+        <svg
+          width="9"
+          height="9"
+          viewBox="0 0 9 9"
+          fill="currentcolor"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M8.53547 0.62293C8.88226 0.849446 8.97976 1.3142 8.75325 1.66099L4.5083 8.1599C4.38833 8.34356 4.19397 8.4655 3.9764 8.49358C3.75883 8.52167 3.53987 8.45309 3.3772 8.30591L0.616113 5.80777C0.308959 5.52987 0.285246 5.05559 0.563148 4.74844C0.84105 4.44128 1.31533 4.41757 1.62249 4.69547L3.73256 6.60459L7.49741 0.840706C7.72393 0.493916 8.18868 0.396414 8.53547 0.62293Z"
+          />
+        </svg>
+      )}
+    </CheckboxPrimitive.Indicator>
+  </CheckboxPrimitive.Root>
+));
+Checkbox.displayName = CheckboxPrimitive.Root.displayName;
+
+export { Checkbox };
+
+
+demo.tsx
+"use client";
+
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { useId, useState } from "react";
+
+function Component() {
+  const id = useId();
+  const [checked, setChecked] = useState<boolean | "indeterminate">("indeterminate");
+
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox id={id} checked={checked} onCheckedChange={setChecked} />
+      <Label htmlFor={id}>Indeterminate checkbox</Label>
+    </div>
+  );
+}
+
+export { Component }
+```
+
+Copy-paste these files for dependencies:
+```tsx
+shadcn/label
+"use client"
+
+import * as React from "react"
+import * as LabelPrimitive from "@radix-ui/react-label"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const labelVariants = cva(
+  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+)
+
+const Label = React.forwardRef<
+  React.ElementRef<typeof LabelPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> &
+    VariantProps<typeof labelVariants>
+>(({ className, ...props }, ref) => (
+  <LabelPrimitive.Root
+    ref={ref}
+    className={cn(labelVariants(), className)}
+    {...props}
+  />
+))
+Label.displayName = LabelPrimitive.Root.displayName
+
+export { Label }
+
+```
+
+Install NPM dependencies:
+```bash
+@radix-ui/react-checkbox, @radix-ui/react-label, class-variance-authority
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+
+
+hero 7.You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+animated-web3-landing-page.tsx
+import React, { useState, useEffect } from "react";
+
+export function Web3HeroAnimated() {
+  // Symmetric pillar heights (percent). Tall at edges, low at center.
+  const pillars = [92, 84, 78, 70, 62, 54, 46, 34, 18, 34, 46, 54, 62, 70, 78, 84, 92];
+
+  // State to trigger animations once the component is mounted.
+  // This ensures animations play on load.
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    // Set isMounted to true after a short delay to allow the component to render first.
+    // This is a common trick to ensure CSS transitions apply on the initial render.
+    const timer = setTimeout(() => setIsMounted(true), 100);
+    // Cleanup the timer if the component unmounts.
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <>
+      {/* We inject a <style> tag directly into the component to define our custom
+        CSS keyframe animations. This keeps the component fully self-contained.
+      */}
+      <style>
+        {`
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes subtlePulse {
+            0%, 100% {
+              opacity: 0.8;
+              transform: scale(1);
+            }
+            50% {
+              opacity: 1;
+              transform: scale(1.03);
+            }
+          }
+          
+          /* We use a class to apply the animation */
+          .animate-fadeInUp {
+            /* Use 'forwards' to maintain the end state of the animation */
+            animation: fadeInUp 0.8s ease-out forwards;
+          }
+        `}
+      </style>
+
+      <section className="relative isolate h-screen overflow-hidden bg-black text-white">
+        {/* ================== BACKGROUND ================== */}
+        {/* Luminous elliptical gradients to emulate the red→violet band and right cool rim */}
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-30"
+          style={{
+            backgroundImage: [
+              // Main central dome/band (slightly below center)
+              "radial-gradient(80% 55% at 50% 52%, rgba(252,166,154,0.45) 0%, rgba(214,76,82,0.46) 27%, rgba(61,36,47,0.38) 47%, rgba(39,38,67,0.45) 60%, rgba(8,8,12,0.92) 78%, rgba(0,0,0,1) 88%)",
+              // Warm sweep from top-left
+              "radial-gradient(85% 60% at 14% 0%, rgba(255,193,171,0.65) 0%, rgba(233,109,99,0.58) 30%, rgba(48,24,28,0.0) 64%)",
+              // Cool rim on top-right
+              "radial-gradient(70% 50% at 86% 22%, rgba(88,112,255,0.40) 0%, rgba(16,18,28,0.0) 55%)",
+              // Soft top vignette
+              "linear-gradient(to bottom, rgba(0,0,0,0.25), rgba(0,0,0,0) 40%)",
+            ].join(","),
+            backgroundColor: "#000",
+          }}
+        />
+
+        {/* Vignette corners for extra contrast */}
+        <div aria-hidden className="absolute inset-0 -z-20 bg-[radial-gradient(140%_120%_at_50%_0%,transparent_60%,rgba(0,0,0,0.85))]" />
+
+        {/* Grid overlay: vertical columns + subtle curved horizontal arcs */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 mix-blend-screen opacity-30"
+          style={{
+            backgroundImage: [
+              // Vertical grid lines (major & minor)
+              "repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 96px)",
+              "repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 24px)",
+              // Curved horizontal arcs via repeating elliptical radial gradient
+              "repeating-radial-gradient(80% 55% at 50% 52%, rgba(255,255,255,0.08) 0 1px, transparent 1px 120px)"
+            ].join(","),
+            backgroundBlendMode: "screen",
+          }}
+        />
+
+        {/* ================== NAV ================== */}
+        <header className="relative z-10">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 md:px-8">
+            <div className="flex items-center gap-3">
+              <div className="h-6 w-6 rounded-full bg-white" />
+              <span className="text-lg font-semibold tracking-tight">MoraAI</span>
+            </div>
+
+            <nav className="hidden items-center gap-8 text-sm/6 text-white/80 md:flex">
+              {['Product','Docs','Customers','Resources','Partners','Pricing'].map((i)=>(
+                <a key={i} className="hover:text-white" href="#">{i}</a>
+              ))}
+            </nav>
+
+            <div className="hidden items-center gap-3 md:flex">
+              <button className="rounded-full px-4 py-2 text-sm text-white/80 hover:text-white">Sign in</button>
+              <button className="rounded-full bg-white px-4 py-2 text-sm font-medium text-black shadow-sm transition hover:bg-white/90">Request Demo</button>
+            </div>
+
+            <button className="md:hidden rounded-full bg-white/10 px-3 py-2 text-sm">Menu</button>
+          </div>
+        </header>
+
+        {/* ================== COPY ================== */}
+        <div className="relative z-10 mx-auto grid w-full max-w-5xl place-items-center px-6 py-16 md:py-24 lg:py-28">
+          {/* We set opacity to 0 and apply the animation class to trigger the fade-in effect */}
+          <div className={`mx-auto text-center ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] uppercase tracking-wider text-white/70 ring-1 ring-white/10 backdrop-blur">
+              <span className="h-1.5 w-1.5 rounded-full bg-white/70" /> web3 toolkit
+            </span>
+            {/* Stagger animations with inline animation-delay */}
+            <h1 style={{ animationDelay: '200ms' }} className={`mt-6 text-4xl font-bold tracking-tight md:text-6xl ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}>Create and connect your world on web3</h1>
+            <p style={{ animationDelay: '300ms' }} className={`mx-auto mt-5 max-w-2xl text-balance text-white/80 md:text-lg ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}>The essential toolkit for sharing and funding anything—from your latest idea to the next big DAO.</p>
+            <div style={{ animationDelay: '400ms' }} className={`mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row ${isMounted ? 'animate-fadeInUp' : 'opacity-0'}`}>
+              <a href="#" className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black shadow transition hover:bg-white/90">Try Molithra</a>
+              <a href="#" className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/90 backdrop-blur hover:border-white/40">Read More</a>
+            </div>
+          </div>
+        </div>
+
+        {/* ================== PARTNERS ================== */}
+        <div className="relative z-10 mx-auto mt-10 w-full max-w-6xl px-6 pb-24">
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 opacity-70">
+            {["git","npm","Lucidchart","wrike","jquery","openstack","servicenow","Paysafe"].map((brand) => (
+              <div key={brand} className="text-xs uppercase tracking-wider text-white/70">{brand}</div>
+            ))}
+          </div>
+        </div>
+
+        {/* ================== FOREGROUND ================== */}
+        {/* Center-bottom rectangular glow with pulse animation */}
+        <div
+          className="pointer-events-none absolute bottom-[128px] left-1/2 z-0 h-36 w-28 -translate-x-1/2 rounded-md bg-gradient-to-b from-white/75 via-rose-100/60 to-transparent"
+          style={{ animation: 'subtlePulse 6s ease-in-out infinite' }}
+        />
+
+        {/* Stepped pillars silhouette */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-[54vh]">
+          {/* dark fade */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/90 to-transparent" />
+          {/* bars */}
+          <div className="absolute inset-x-0 bottom-0 flex h-full items-end gap-px px-[2px]">
+            {pillars.map((h, i) => (
+              <div
+                key={i}
+                className="flex-1 bg-black transition-height duration-1000 ease-in-out"
+                style={{
+                  // Animate height from 0% to its target value when isMounted is true.
+                  height: isMounted ? `${h}%` : '0%',
+                  // Stagger the animation delay to create a wave effect from the center out.
+                  transitionDelay: `${Math.abs(i - Math.floor(pillars.length / 2)) * 60}ms`
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+
+demo.tsx
+
+import { Web3HeroAnimated } from "@/components/ui/animated-web3-landing-page";
+
+export default function DemoOne() {
+  return <Web3HeroAnimated />;
+}
+
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them
+ 

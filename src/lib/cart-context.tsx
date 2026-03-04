@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 export interface CartItem {
+  itemCode: string; // Unique code for each cart item
   dishId: string;
   name: string;
   price: number;
@@ -8,13 +9,15 @@ export interface CartItem {
   imageUrl: string;
   maxStock: number;
   scheduledMenuId?: string;
+  scheduledDate?: string; // Date selected in cart
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
-  removeItem: (dishId: string) => void;
-  updateQuantity: (dishId: string, quantity: number) => void;
+  addItem: (item: Omit<CartItem, "quantity" | "itemCode">, quantity?: number) => void;
+  removeItem: (itemCode: string) => void;
+  updateQuantity: (itemCode: string, quantity: number) => void;
+  updateScheduledDate: (itemCode: string, date: string, scheduledMenuId?: string) => void;
   clearCart: () => void;
   totalItems: number;
   totalAmount: number;
@@ -23,6 +26,10 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const CART_STORAGE_KEY = "dd-kitchen-cart";
+
+const generateItemCode = () => {
+  return `HK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+};
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>(() => {
@@ -38,7 +45,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const addItem = (item: Omit<CartItem, "quantity">, qty: number = 1) => {
+  const addItem = (item: Omit<CartItem, "quantity" | "itemCode">, qty: number = 1) => {
+    const newItemCode = generateItemCode();
     setItems((prev) => {
       const existing = prev.find((i) => i.dishId === item.dishId && i.scheduledMenuId === item.scheduledMenuId);
       if (existing) {
@@ -49,21 +57,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : i
         );
       }
-      return [...prev, { ...item, quantity: Math.min(qty, item.maxStock) }];
+      return [...prev, { ...item, quantity: Math.min(qty, item.maxStock), itemCode: newItemCode }];
     });
+    return newItemCode;
   };
 
-  const removeItem = (dishId: string) => {
-    setItems((prev) => prev.filter((i) => i.dishId !== dishId));
+  const removeItem = (itemCode: string) => {
+    setItems((prev) => prev.filter((i) => i.itemCode !== itemCode));
   };
 
-  const updateQuantity = (dishId: string, quantity: number) => {
+  const updateQuantity = (itemCode: string, quantity: number) => {
     if (quantity <= 0) {
-      removeItem(dishId);
+      removeItem(itemCode);
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.dishId === dishId ? { ...i, quantity: Math.min(quantity, i.maxStock) } : i))
+      prev.map((i) => (i.itemCode === itemCode ? { ...i, quantity: Math.min(quantity, i.maxStock) } : i))
+    );
+  };
+
+  const updateScheduledDate = (itemCode: string, date: string, scheduledMenuId?: string) => {
+    setItems((prev) =>
+      prev.map((i) => (i.itemCode === itemCode ? { ...i, scheduledDate: date, scheduledMenuId: scheduledMenuId || i.scheduledMenuId } : i))
     );
   };
 
@@ -73,7 +88,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const totalAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalAmount }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, updateScheduledDate, clearCart, totalItems, totalAmount }}>
       {children}
     </CartContext.Provider>
   );

@@ -18,6 +18,8 @@ DECLARE
   _quantity INTEGER;
   _unit_price NUMERIC;
   _stock INTEGER;
+  _scheduled_id UUID;
+  _scheduled_stock INTEGER;
 BEGIN
   -- Generate unique order code
   _order_code := public.generate_order_code();
@@ -33,19 +35,36 @@ BEGIN
     _dish_id := (_item->>'dishId')::UUID;
     _quantity := (_item->>'quantity')::INTEGER;
     _unit_price := (_item->>'price')::NUMERIC;
+    _scheduled_id := (_item->>'scheduledMenuId')::UUID;
 
-    -- Verify and reduce stock
-    SELECT stock_quantity INTO _stock FROM public.dishes WHERE id = _dish_id FOR UPDATE;
-    
-    IF _stock < _quantity THEN
-      RAISE EXCEPTION 'Insufficient stock for dish %', _dish_id;
+    -- Verify dish exists
+    IF NOT EXISTS (SELECT 1 FROM public.dishes WHERE id = _dish_id) THEN
+      RAISE EXCEPTION 'Dish not found: %', _dish_id;
     END IF;
 
-    UPDATE public.dishes SET stock_quantity = stock_quantity - _quantity WHERE id = _dish_id;
+    -- If scheduled menu item, use scheduled stock
+    IF _scheduled_id IS NOT NULL THEN
+      SELECT quantity_remaining INTO _stock FROM public.scheduled_menu WHERE id = _scheduled_id FOR UPDATE;
+      
+      IF _stock < _quantity THEN
+        RAISE EXCEPTION 'Insufficient scheduled stock for dish %', _dish_id;
+      END IF;
+
+      UPDATE public.scheduled_menu SET quantity_remaining = quantity_remaining - _quantity WHERE id = _scheduled_id;
+    ELSE
+      -- Verify and reduce regular stock
+      SELECT stock_quantity INTO _stock FROM public.dishes WHERE id = _dish_id FOR UPDATE;
+      
+      IF _stock < _quantity THEN
+        RAISE EXCEPTION 'Insufficient stock for dish %', _dish_id;
+      END IF;
+
+      UPDATE public.dishes SET stock_quantity = stock_quantity - _quantity WHERE id = _dish_id;
+    END IF;
 
     -- Insert order item
-    INSERT INTO public.order_items (order_id, dish_id, quantity, unit_price)
-    VALUES (_order_id, _dish_id, _quantity, _unit_price);
+    INSERT INTO public.order_items (order_id, dish_id, quantity, unit_price, scheduled_menu_id)
+    VALUES (_order_id, _dish_id, _quantity, _unit_price, _scheduled_id);
   END LOOP;
 
   -- Create a notification for the manager
