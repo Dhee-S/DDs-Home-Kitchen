@@ -27,7 +27,7 @@ const ScheduleManagement = () => {
   const { data: dishes = [], isLoading: dishesLoading } = useQuery({
     queryKey: ["all-dishes"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("dishes").select("id, name, selling_price, image_url, dish_type").order("name");
+      const { data, error } = await supabase.from("dishes").select("id, name, selling_price, image_url").order("name");
       if (error) {
         console.error("Dishes fetch error:", error);
         return [];
@@ -41,7 +41,7 @@ const ScheduleManagement = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scheduled_menu")
-        .select("*, dishes(name, image_url, selling_price, dish_type)")
+        .select("*, dishes(name, image_url, selling_price)")
         .gte("schedule_date", today)
         .lte("schedule_date", nextWeek)
         .order("schedule_date");
@@ -120,7 +120,7 @@ const ScheduleManagement = () => {
           <h2 className="text-2xl font-bold">Weekly Schedule</h2>
           <p className="text-muted-foreground">Manage meal pre-orders for the next 7 days</p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={(open) => { 
+        <Dialog open={isAddOpen} onOpenChange={(open) => {
           if (open) setForm({ ...form, schedule_date: format(selectedDate, "yyyy-MM-dd") });
           if (!open) setForm({ dish_id: "", schedule_date: format(new Date(), "yyyy-MM-dd"), quantity_available: 10, preorder_enabled: true, schedule_price: 0 });
           setIsAddOpen(open);
