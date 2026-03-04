@@ -185,16 +185,13 @@ const MenuManagement = () => {
         : selectedDate;
       
       const selectedDish = dishes.find((d: any) => d.id === selectedDishId);
-      const customPrice = schedulePrice > 0 ? schedulePrice : selectedDish?.selling_price;
       
       const payload = {
         dish_id: selectedDishId,
         schedule_date: scheduleDate,
-        date: scheduleDate,
         quantity_available: quantity,
         quantity_remaining: quantity,
-        preorder_enabled: true,
-        schedule_price: customPrice
+        preorder_enabled: true
       };
       
       const { error } = await supabase.from("scheduled_menu").insert(payload);

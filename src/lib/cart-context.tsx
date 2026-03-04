@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 export interface CartItem {
   dishId: string;
@@ -22,16 +22,31 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+const CART_STORAGE_KEY = "dd-kitchen-cart";
+
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  }, [items]);
 
   const addItem = (item: Omit<CartItem, "quantity">, qty: number = 1) => {
     setItems((prev) => {
-      const existing = prev.find((i) => i.dishId === item.dishId);
+      const existing = prev.find((i) => i.dishId === item.dishId && i.scheduledMenuId === item.scheduledMenuId);
       if (existing) {
         if (existing.quantity >= item.maxStock) return prev;
         return prev.map((i) =>
-          i.dishId === item.dishId ? { ...i, quantity: Math.min(i.quantity + qty, item.maxStock) } : i
+          i.dishId === item.dishId && i.scheduledMenuId === item.scheduledMenuId 
+            ? { ...i, quantity: Math.min(i.quantity + qty, item.maxStock) } 
+            : i
         );
       }
       return [...prev, { ...item, quantity: Math.min(qty, item.maxStock) }];

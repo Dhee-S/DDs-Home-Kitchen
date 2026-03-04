@@ -1,4 +1,25 @@
 -- ============================================================================
+-- ADD MISSING COLUMNS FOR SCHEDULED MENU & ORDER ITEMS
+-- ============================================================================
+
+-- Add schedule_price column to scheduled_menu
+ALTER TABLE public.scheduled_menu ADD COLUMN IF NOT EXISTS schedule_price NUMERIC(10,2);
+
+-- Add cancellation_reason and payment_status to orders  
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending';
+
+-- Add scheduled_menu_id to order_items (for linking orders to scheduled menu)
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS scheduled_menu_id UUID REFERENCES public.scheduled_menu(id) ON DELETE SET NULL;
+
+-- Add quantity_remaining to scheduled_menu (for stock tracking)
+ALTER TABLE public.scheduled_menu ADD COLUMN IF NOT EXISTS quantity_remaining INTEGER;
+
+-- Update quantity_remaining to equal quantity_available for existing records
+UPDATE public.scheduled_menu SET quantity_remaining = quantity_available WHERE quantity_remaining IS NULL;
+
+
+-- ============================================================================
 -- AUTO-EXPIRE WEEKLY SPECIALS
 -- ============================================================================
 
@@ -20,10 +41,11 @@ CREATE TRIGGER trigger_expire_scheduled
   FOR EACH ROW
   EXECUTE FUNCTION public.expire_old_scheduled_items();
 
+
 -- ============================================================================
 -- VERIFY COLUMNS
 -- ============================================================================
 SELECT table_name, column_name, data_type 
 FROM information_schema.columns 
-WHERE table_name IN ('scheduled_menu', 'special_requests')
+WHERE table_name IN ('scheduled_menu', 'orders', 'order_items')
 ORDER BY table_name, ordinal_position;
